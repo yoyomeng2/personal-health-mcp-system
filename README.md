@@ -52,10 +52,12 @@ Enable a local or agent-based system to:
 3. **Model Engine:** Random Forest Regressor (scikit-learn) for pain prediction.
 4. **Agent Interface:** Local LLM or automation client consuming the MCP API.
 
+```text
 ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
 │ User Input   │──────▶│ MCP Server   │──────▶│ SQLite / ML  │
 │ (Form/CLI)   │       │ (FastAPI)    │       │ Engine       │
 └──────────────┘       └──────────────┘       └──────────────┘
+```
 
 ---
 
@@ -95,7 +97,7 @@ personal-health-mcp-system/
 │   └── personal_health/
 │       ├── __init__.py
 │       ├── core.py                     # FastAPI app with mounted MCP
-│       ├── config.py                   # Configuration handling
+│       ├── config.py                   # Configuration handling;`
 │       ├── logging_config.py           # Logging configuration
 │       ├── exceptions.py               # Custom exceptions
 │       ├── utils.py                    # Utility functions
