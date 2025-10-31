@@ -1,0 +1,15 @@
+sample_entries:
+  - date: "2025-10-24"
+    meal: "tacos"
+    alcohol: "beer"
+    stress: 4
+    sleep_hours: 7.5
+    pain_level: 2
+    notes: "test entry 1"
+  - date: "2025-10-25"
+    meal: "salad"
+    alcohol: null
+    stress: 3
+    sleep_hours: 8.0
+    pain_level: 1
+    notes: "test entry 2"

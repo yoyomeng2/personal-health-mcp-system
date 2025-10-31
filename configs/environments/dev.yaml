@@ -1,0 +1,8 @@
+# Development environment config
+# Extends personal_health.yaml
+
+server:
+  debug: true
+
+logging:
+  level: "DEBUG"

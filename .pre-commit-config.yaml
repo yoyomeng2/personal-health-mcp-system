@@ -1,0 +1,64 @@
+exclude: |
+  (^\.venv/)|
+  (^venv/)|
+  (^.*/site-packages/)|
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-yaml
+      - id: detect-aws-credentials
+        args:
+          - --allow-missing-credentials
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+      - id: pretty-format-json
+        args: [--autofix]
+      - id: trailing-whitespace
+        args:
+          - --markdown-linebreak-ext=md
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.5
+    hooks:
+      - id: ruff
+        args:
+         - --fix
+         - --config=pyproject.toml
+      - id: ruff-format
+        args:
+         - --config=pyproject.toml
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.5.1
+    hooks:
+      - id: mypy
+        args: ["--ignore-missing-imports"]
+        additional_dependencies: ["pydantic", "types-PyYAML"]
+        exclude: ^(tests/|scripts/)
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      # NOTE: This hook uses `shellcheck` in GH Actions
+      #       To mimic locally, `brew install shellcheck`
+      - id: actionlint
+
+  # Use mypy to check types
+  # - repo: local
+  #   hooks:
+  #     - id: mypy
+  #       name: mypy
+  #       language: system
+  #       entry: uv run mypy
+  #       pass_filenames: false
