@@ -143,3 +143,65 @@ class CorrelationResponse(BaseModel):
     """Response for correlation analysis."""
 
     correlations: dict
+
+
+class UserProfileRequest(BaseModel):
+    """Request schema for creating or updating user profile."""
+
+    dietary_restrictions: list[str] = Field(
+        default_factory=list,
+        description="Dietary restrictions (e.g., ['gluten-free', 'vegan'])",
+    )
+    allergies: list[str] = Field(
+        default_factory=list,
+        description="Food allergies (e.g., ['peanuts', 'shellfish'])",
+    )
+    preferences: dict[str, str] = Field(
+        default_factory=dict,
+        description="Food preferences (e.g., {'milk_type': 'oat', 'tortilla_type': 'flour'})",
+    )
+    habits: dict[str, str] = Field(
+        default_factory=dict,
+        description="Dietary habits (e.g., {'typical_breakfast': 'cereal with oat milk'})",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "dietary_restrictions": ["gluten-free", "lactose-intolerant"],
+                "allergies": [],
+                "preferences": {"milk_type": "oat", "tortilla_type": "flour"},
+                "habits": {"typical_breakfast": "cereal with oat milk"},
+            }
+        }
+    )
+
+
+class UserProfileResponse(UserProfileRequest):
+    """Response schema for user profile."""
+
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    date_last_confirmed: datetime | None = Field(
+        None, description="Date when profile was last validated"
+    )
+    profile_stale: bool = Field(
+        False, description="Whether profile is older than 30 days and needs refresh"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": "default_user",
+                "dietary_restrictions": ["gluten-free", "lactose-intolerant"],
+                "allergies": [],
+                "preferences": {"milk_type": "oat", "tortilla_type": "flour"},
+                "habits": {"typical_breakfast": "cereal with oat milk"},
+                "created_at": "2025-11-03T10:30:00",
+                "updated_at": "2025-11-03T10:30:00",
+                "date_last_confirmed": "2025-11-03T10:30:00",
+                "profile_stale": False,
+            }
+        }
+    )

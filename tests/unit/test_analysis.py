@@ -24,7 +24,7 @@ class TestComputeSummary:
     def test_single_entry_summary(self) -> None:
         """Test summary with a single entry."""
         today = datetime.now().strftime("%Y-%m-%d")
-        entries = [
+        entries: list[dict[str, Any]] = [
             {
                 "date": today,
                 "meal": "pizza",
@@ -46,7 +46,7 @@ class TestComputeSummary:
     def test_multiple_entries_average(self) -> None:
         """Test that average is computed correctly across multiple entries."""
         today = datetime.now()
-        entries = [
+        entries: list[dict[str, Any]] = [
             {
                 "date": (today - timedelta(days=i)).strftime("%Y-%m-%d"),
                 "meal": "food",
@@ -70,7 +70,7 @@ class TestComputeSummary:
     def test_window_days_filter(self) -> None:
         """Test that entries outside window are filtered."""
         today = datetime.now()
-        entries = [
+        entries: list[dict[str, Any]] = [
             {
                 "date": (today - timedelta(days=2)).strftime("%Y-%m-%d"),
                 "stress": 3,
@@ -92,7 +92,7 @@ class TestComputeSummary:
     def test_missing_numeric_fields_ignored(self) -> None:
         """Test that missing numeric fields are ignored."""
         today = datetime.now().strftime("%Y-%m-%d")
-        entries = [
+        entries: list[dict[str, Any]] = [
             {"date": today, "stress": 5, "sleep_hours": None, "pain_level": 2},
             {"date": today, "stress": None, "sleep_hours": 8, "pain_level": 1},
             {"date": today, "stress": 4, "sleep_hours": 7, "pain_level": None},
@@ -112,7 +112,7 @@ class TestComputeSummary:
     def test_all_entries_outside_window(self) -> None:
         """Test when all entries are outside the window."""
         today = datetime.now()
-        entries = [
+        entries: list[dict[str, Any]] = [
             {
                 "date": (today - timedelta(days=30)).strftime("%Y-%m-%d"),
                 "stress": 5,
@@ -127,7 +127,9 @@ class TestComputeSummary:
     def test_summary_structure(self) -> None:
         """Test that summary has expected structure."""
         today = datetime.now().strftime("%Y-%m-%d")
-        entries = [{"date": today, "stress": 5, "sleep_hours": 8, "pain_level": 2}]
+        entries: list[dict[str, Any]] = [
+            {"date": today, "stress": 5, "sleep_hours": 8, "pain_level": 2}
+        ]
         result = compute_summary(entries, window_days=7).model_dump()
         assert "count" in result
         assert "window_days" in result
@@ -146,7 +148,9 @@ class TestComputeSummary:
     def test_zero_values_in_metrics(self) -> None:
         """Test that zero values are handled correctly."""
         today = datetime.now().strftime("%Y-%m-%d")
-        entries = [{"date": today, "stress": 0, "sleep_hours": 0, "pain_level": 0}]
+        entries: list[dict[str, Any]] = [
+            {"date": today, "stress": 0, "sleep_hours": 0, "pain_level": 0}
+        ]
         result = compute_summary(entries, window_days=7).model_dump()
         assert result["metrics"]["stress"]["avg"] == 0
         assert result["metrics"]["sleep_hours"]["avg"] == 0
@@ -155,7 +159,7 @@ class TestComputeSummary:
     def test_rounding_to_two_decimals(self) -> None:
         """Test that averages are rounded to 2 decimal places."""
         today = datetime.now().strftime("%Y-%m-%d")
-        entries = [
+        entries: list[dict[str, Any]] = [
             {"date": today, "stress": 1},
             {"date": today, "stress": 2},
             {"date": today, "stress": 3},
@@ -169,7 +173,7 @@ class TestComputeSummary:
         """Test that median is calculated correctly."""
         today = datetime.now().strftime("%Y-%m-%d")
         # Odd number of values: [1, 2, 3] -> median = 2
-        entries = [
+        entries: list[dict[str, Any]] = [
             {"date": today, "stress": 1, "sleep_hours": 7.0, "pain_level": 1},
             {"date": today, "stress": 2, "sleep_hours": 8.0, "pain_level": 2},
             {"date": today, "stress": 3, "sleep_hours": 9.0, "pain_level": 3},
@@ -183,7 +187,7 @@ class TestComputeSummary:
         """Test median with even number of values."""
         today = datetime.now().strftime("%Y-%m-%d")
         # Even number of values: [1, 2, 3, 4] -> median = 2.5
-        entries = [
+        entries: list[dict[str, Any]] = [
             {"date": today, "pain_level": 1},
             {"date": today, "pain_level": 2},
             {"date": today, "pain_level": 3},
@@ -195,7 +199,7 @@ class TestComputeSummary:
     def test_std_deviation_calculation(self) -> None:
         """Test that standard deviation is calculated correctly."""
         today = datetime.now().strftime("%Y-%m-%d")
-        entries = [
+        entries: list[dict[str, Any]] = [
             {"date": today, "stress": 2},
             {"date": today, "stress": 4},
             {"date": today, "stress": 6},
@@ -209,14 +213,14 @@ class TestComputeSummary:
     def test_std_single_value_is_none(self) -> None:
         """Test that std is None for single value (requires at least 2)."""
         today = datetime.now().strftime("%Y-%m-%d")
-        entries = [{"date": today, "stress": 5}]
+        entries: list[dict[str, Any]] = [{"date": today, "stress": 5}]
         result = compute_summary(entries, window_days=7).model_dump()
         assert result["metrics"]["stress"]["std"] is None
 
     def test_malformed_date_skipped_with_warning(self, caplog: Any) -> None:
         """Test that entries with malformed dates are skipped."""
         today = datetime.now().strftime("%Y-%m-%d")
-        entries = [
+        entries: list[dict[str, Any]] = [
             {"date": "invalid-date", "stress": 5},  # Bad date
             {"date": today, "stress": 3},  # Good date
         ]
@@ -230,7 +234,7 @@ class TestComputeSummary:
     def test_missing_date_field_skipped(self, caplog: Any) -> None:
         """Test that entries without date field are skipped."""
         today = datetime.now().strftime("%Y-%m-%d")
-        entries = [
+        entries: list[dict[str, Any]] = [
             {"stress": 5},  # No date field
             {"date": today, "stress": 3},
         ]

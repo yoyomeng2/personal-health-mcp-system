@@ -1,5 +1,7 @@
 """MCP routes - HTTP endpoints."""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from personal_health.api.analysis import compute_summary
@@ -13,8 +15,10 @@ from personal_health.api.schemas import (
     EntryUpdate,
     PredictionResponse,
     SummaryResponse,
+    UserProfileRequest,
+    UserProfileResponse,
 )
-from personal_health.db import Database
+from personal_health.db import Database, UserProfileRepository
 from personal_health.exceptions import DatabaseError, DuplicateEntryError
 from personal_health.logging_config import get_logger
 from personal_health.ml import HealthPredictor
@@ -23,6 +27,7 @@ from personal_health.utils import generate_entry_id
 logger = get_logger(__name__)
 router = APIRouter()
 db = Database()
+user_profile_repo = UserProfileRepository(db)
 
 
 @router.get("/", tags=["health"])
@@ -47,7 +52,9 @@ async def health_check() -> dict:
     return {"status": "healthy"}
 
 
-@router.post("/add_entry", operation_id=OperationId.ADD_ENTRY, response_model=EntryResponse)
+@router.post(
+    "/add_entry", operation_id=OperationId.ADD_ENTRY.operation_id, response_model=EntryResponse
+)
 async def add_entry(entry: EntryCreate) -> EntryResponse:
     """Add a new health entry.
 
@@ -93,7 +100,11 @@ async def add_entry(entry: EntryCreate) -> EntryResponse:
         raise HTTPException(status_code=500, detail="Failed to create entry") from e
 
 
-@router.put("/update_entry", operation_id=OperationId.UPDATE_ENTRY, response_model=EntryResponse)
+@router.put(
+    "/update_entry",
+    operation_id=OperationId.UPDATE_ENTRY.operation_id,
+    response_model=EntryResponse,
+)
 async def update_entry(entry: EntryUpdate) -> EntryResponse:
     """Update an existing health entry.
 
@@ -165,7 +176,11 @@ async def update_entry(entry: EntryUpdate) -> EntryResponse:
         raise HTTPException(status_code=500, detail="Failed to update entry") from e
 
 
-@router.get("/get_entries", operation_id=OperationId.GET_ENTRIES, response_model=EntriesResponse)
+@router.get(
+    "/get_entries",
+    operation_id=OperationId.GET_ENTRIES.operation_id,
+    response_model=EntriesResponse,
+)
 async def get_entries(
     limit: int = 10,
     offset: int = 0,
@@ -252,7 +267,9 @@ async def get_entries(
         raise HTTPException(status_code=500, detail="Failed to retrieve entries") from e
 
 
-@router.get("/get_entry/{entry_id}", operation_id=OperationId.GET_ENTRY, response_model=Entry)
+@router.get(
+    "/get_entry/{entry_id}", operation_id=OperationId.GET_ENTRY.operation_id, response_model=Entry
+)
 async def get_entry(entry_id: str) -> Entry:
     """Get a single health entry by ID.
 
@@ -296,7 +313,7 @@ async def get_entry(entry_id: str) -> Entry:
         raise HTTPException(status_code=500, detail="Failed to get entry") from e
 
 
-@router.post("/reset_database", operation_id=OperationId.RESET_DATABASE)
+@router.post("/reset_database", operation_id=OperationId.RESET_DATABASE.operation_id)
 async def reset_database() -> dict:
     """Reset the database by deleting all entries.
 
@@ -316,7 +333,9 @@ async def reset_database() -> dict:
 
 
 @router.get(
-    "/summarize_recent", operation_id=OperationId.GET_SUMMARY, response_model=SummaryResponse
+    "/summarize_recent",
+    operation_id=OperationId.GET_SUMMARY.operation_id,
+    response_model=SummaryResponse,
 )
 async def summarize_recent(window_days: int = 7) -> SummaryResponse:
     """Get summary of recent health data.
@@ -371,7 +390,9 @@ _predict_next_day_predictor_dep = Depends(_get_predictor)
 
 
 @router.get(
-    "/predict_next_day", operation_id=OperationId.GET_PREDICTION, response_model=PredictionResponse
+    "/predict_next_day",
+    operation_id=OperationId.GET_PREDICTION.operation_id,
+    response_model=PredictionResponse,
 )
 async def predict_next_day(
     date: str, predictor: HealthPredictor = _predict_next_day_predictor_dep
@@ -424,7 +445,7 @@ async def predict_next_day(
 
 @router.get(
     "/analyze_pain_triggers",
-    operation_id=OperationId.ANALYZE_TRIGGERS,
+    operation_id=OperationId.ANALYZE_TRIGGERS.operation_id,
     response_model=CorrelationResponse,
 )
 async def analyze_pain_triggers() -> dict:
@@ -439,3 +460,119 @@ async def analyze_pain_triggers() -> dict:
     except Exception as e:
         logger.error(f"Failed to analyze pain triggers: {e}")
         raise HTTPException(status_code=500, detail="Failed to analyze pain triggers") from e
+
+
+@router.get(
+    "/user/profile",
+    operation_id=OperationId.GET_USER_PROFILE.operation_id,
+    response_model=UserProfileResponse,
+    tags=["user-profile"],
+)
+async def get_user_profile(user_id: str = "default_user") -> UserProfileResponse:
+    """Get user dietary profile.
+
+    Args:
+        user_id (str): User ID. Defaults to 'default_user'.
+
+    Returns:
+        User profile with dietary preferences and staleness check.
+
+    Raises:
+        HTTPException: If profile retrieval fails.
+    """
+    try:
+        logger.info(f"Retrieving user profile: {user_id}")
+        profile = user_profile_repo.get(user_id)
+
+        if not profile:
+            logger.info(f"Profile not found, creating default: {user_id}")
+            user_profile_repo.create_or_update(user_id)
+            profile = user_profile_repo.get(user_id)
+
+        if not profile:
+            raise DatabaseError("Failed to create default profile")
+
+        # Parse JSON fields
+        dietary_restrictions = json.loads(profile["dietary_restrictions"] or "[]")
+        allergies = json.loads(profile["allergies"] or "[]")
+        preferences = json.loads(profile["preferences"] or "{}")
+        habits = json.loads(profile["habits"] or "{}")
+
+        # Check if profile is stale
+        profile_stale = user_profile_repo.is_stale(user_id)
+
+        return UserProfileResponse(
+            id=profile["id"],
+            dietary_restrictions=dietary_restrictions,
+            allergies=allergies,
+            preferences=preferences,
+            habits=habits,
+            created_at=profile["created_at"],
+            updated_at=profile["updated_at"],
+            date_last_confirmed=profile["date_last_confirmed"],
+            profile_stale=profile_stale,
+        )
+    except DatabaseError as e:
+        logger.error(f"Failed to retrieve user profile: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve user profile") from e
+
+
+@router.put(
+    "/user/profile",
+    operation_id=OperationId.UPDATE_USER_PROFILE.operation_id,
+    response_model=UserProfileResponse,
+    tags=["user-profile"],
+)
+async def update_user_profile(
+    profile_data: UserProfileRequest, user_id: str = "default_user"
+) -> UserProfileResponse:
+    """Create or update user dietary profile.
+
+    Args:
+        profile_data: User profile data.
+        user_id (str): User ID. Defaults to 'default_user'.
+
+    Returns:
+        Updated user profile.
+
+    Raises:
+        HTTPException: If profile update fails.
+    """
+    try:
+        logger.info(f"Updating user profile: {user_id}")
+
+        # Convert to JSON for storage
+        dietary_restrictions_json = json.dumps(profile_data.dietary_restrictions)
+        allergies_json = json.dumps(profile_data.allergies)
+        preferences_json = json.dumps(profile_data.preferences)
+        habits_json = json.dumps(profile_data.habits)
+
+        user_profile_repo.create_or_update(
+            user_id=user_id,
+            dietary_restrictions=dietary_restrictions_json,
+            allergies=allergies_json,
+            preferences=preferences_json,
+            habits=habits_json,
+        )
+
+        # Retrieve updated profile
+        profile = user_profile_repo.get(user_id)
+        if not profile:
+            raise DatabaseError("Failed to retrieve updated profile")
+
+        profile_stale = user_profile_repo.is_stale(user_id)
+
+        return UserProfileResponse(
+            id=profile["id"],
+            dietary_restrictions=profile_data.dietary_restrictions,
+            allergies=profile_data.allergies,
+            preferences=profile_data.preferences,
+            habits=profile_data.habits,
+            created_at=profile["created_at"],
+            updated_at=profile["updated_at"],
+            date_last_confirmed=profile["date_last_confirmed"],
+            profile_stale=profile_stale,
+        )
+    except DatabaseError as e:
+        logger.error(f"Failed to update user profile: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user profile") from e

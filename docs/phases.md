@@ -234,9 +234,9 @@ curl localhost:8080/correlations
 
 - Implementation steps:
 
-  1. Schema migration: Create user_profile table with dietary preference fields
-  2. Implement onboarding flow with initial dietary questions
-  3. Add GET/PUT /user/profile endpoints
+  1. ✅ Schema migration: Create user_profile table with dietary preference fields
+  2. ✅ Implement onboarding flow with initial dietary questions
+  3. ✅ Add GET/PUT /user/profile endpoints
   4. Extend entries table with 19 feature columns
   5. Implement LLM extraction with user context injection
   6. Update API to expose features and accept PATCH updates

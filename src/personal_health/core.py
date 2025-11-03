@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi_mcp import FastApiMCP
 
-from personal_health.api.operation_ids import OperationId
+from personal_health.api.operation_ids import get_mcp_operations
 from personal_health.api.routes import router as api_router
 from personal_health.config import Config
 from personal_health.db import Database
@@ -45,15 +45,7 @@ def create_app() -> FastAPI:
         app,
         name="personal-health-mcp",
         description=description,
-        include_operations=[
-            OperationId.ADD_ENTRY,
-            OperationId.UPDATE_ENTRY,
-            OperationId.GET_ENTRY,
-            OperationId.GET_ENTRIES,
-            OperationId.GET_SUMMARY,
-            OperationId.GET_PREDICTION,
-            OperationId.ANALYZE_TRIGGERS,
-        ],
+        include_operations=get_mcp_operations(),
     )
     include_operations_mcp.mount_http()
 
