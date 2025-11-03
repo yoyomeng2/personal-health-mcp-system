@@ -27,21 +27,69 @@ class SQLiteDatabase:
         self._initialized = False
 
     def init(self) -> None:
-        """Initialize database schema."""
-        schema_path = Path(__file__).resolve().parent / "schema.sql"
-        try:
-            with open(schema_path) as f:
-                schema = f.read()
+        """Initialize database schema and apply pending migrations."""
+        self._apply_pending_migrations()
+        self._initialized = True
+        logger.info(f"Database ready: {self.db_path}")
 
-            with self.connect() as conn:
-                conn.executescript(schema)
-                conn.commit()
-                self._initialized = True
-                logger.info(f"Database initialized: {self.db_path}")
-        except FileNotFoundError as e:
-            raise DatabaseError(f"Schema file not found: {schema_path}") from e
-        except sqlite3.Error as e:
-            raise DatabaseError(f"Failed to initialize database: {e}") from e
+    def _apply_pending_migrations(self) -> None:
+        """Apply pending migrations from the migrations/ directory.
+
+        The initial schema is migration 000_initial_schema.sql and runs first.
+        All migrations are tracked in the _migrations table to prevent re-execution.
+        """
+        migrations_dir = Path(__file__).resolve().parent / "migrations"
+        if not migrations_dir.exists():
+            logger.warning(f"Migrations directory not found: {migrations_dir}")
+            return
+
+        migration_files = sorted(migrations_dir.glob("*.sql"))
+        if not migration_files:
+            logger.debug("No migration files found")
+            return
+
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            # Create migrations tracking table if it doesn't exist
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS _migrations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    migration_name TEXT UNIQUE NOT NULL,
+                    executed_at TEXT DEFAULT (datetime('now'))
+                )
+                """
+            )
+            conn.commit()
+
+            for migration_file in migration_files:
+                migration_name = migration_file.name
+
+                # Check if migration already ran
+                cursor.execute(
+                    "SELECT 1 FROM _migrations WHERE migration_name = ?", (migration_name,)
+                )
+                if cursor.fetchone():
+                    logger.debug(f"Migration already applied: {migration_name}")
+                    continue
+
+                # Run migration
+                try:
+                    logger.info(f"Applying migration: {migration_name}")
+                    cursor.executescript(migration_file.read_text())
+
+                    cursor.execute(
+                        "INSERT INTO _migrations (migration_name) VALUES (?)",
+                        (migration_name,),
+                    )
+                    conn.commit()
+                    logger.info(f"Migration completed: {migration_name}")
+
+                except sqlite3.Error as e:
+                    logger.error(f"Migration failed: {migration_name}")
+                    conn.rollback()
+                    raise DatabaseError(f"Failed to apply migration {migration_name}: {e}") from e
 
     @contextmanager
     def connect(self) -> Any:
