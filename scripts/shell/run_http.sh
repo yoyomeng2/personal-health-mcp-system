@@ -23,4 +23,5 @@ echo ""
 uv run uvicorn personal_health.core:app \
     --host 0.0.0.0 \
     --port "$PORT" \
+    --reload-delay 3 \
     --reload

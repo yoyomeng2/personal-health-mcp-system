@@ -58,4 +58,5 @@ uv run uvicorn personal_health.core:app \
     --port "$PORT" \
     --ssl-keyfile="$KEY_FILE" \
     --ssl-certfile="$CERT_FILE" \
+    --reload-delay 3 \
     --reload
