@@ -257,8 +257,9 @@ Duplicate entries with identical values across **all fields** (date, meal, alcoh
 
 1. Feature Engineering:
 
-    - Convert categorical text (meal, alcohol) to embeddings or dummy vars.
+    - Convert categorical text (meal, alcohol) to binary features.
     - Add lag features (previous-day alcohol, rolling stress avg).
+    - Calculate aggregate statistics.
 
 1. Training:
 
