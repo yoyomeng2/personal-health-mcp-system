@@ -2,6 +2,7 @@
 
 import tempfile
 from collections.abc import Generator
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -15,7 +16,7 @@ from personal_health.db import Database
 def sample_entry() -> dict:
     """Sample health entry for tests."""
     return {
-        "date": "2025-10-24",
+        "date": datetime.now().strftime("%Y-%m-%d"),
         "meal": "tacos",
         "alcohol": "beer",
         "stress": 4,
