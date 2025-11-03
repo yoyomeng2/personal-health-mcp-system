@@ -235,15 +235,15 @@ curl localhost:8080/correlations
 - Implementation steps:
 
   1. ✅ Schema migration: Create user_profile table with dietary preference fields
-  2. ✅ Implement onboarding flow with initial dietary questions
-  3. ✅ Add GET/PUT /user/profile endpoints
-  4. Extend entries table with 19 feature columns
-  5. Implement LLM extraction with user context injection
-  6. Update API to expose features and accept PATCH updates
-  7. Implement batch confirmation UX in agent prompts
-  8. Add profile violation detection and clarifying questions
-  9. Refactor model training to read features from DB columns
-  10. Add correlation analysis endpoint
+  1. ✅ Implement onboarding flow with initial dietary questions
+  1. ✅ Add GET/PUT /user/profile endpoints
+  1. ✅ Extend entries table with 19 feature columns
+  1. ✅ Update API to expose features and accept PATCH updates
+  1. Implement LLM extraction with user context injection
+  1. Implement batch confirmation UX in agent prompts
+  1. Add profile violation detection and clarifying questions
+  1. Refactor model training to read features from DB columns
+  1. Add correlation analysis endpoint
 
 - Estimate: 8–12 hours (user profile schema, onboarding, context-aware extraction, API updates, testing)
 

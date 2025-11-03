@@ -46,6 +46,7 @@ class SQLiteDatabase:
             if not self._initialized and self.db_path.exists():
                 self._initialized = True
             conn = sqlite3.connect(str(self.db_path), timeout=30.0)
+            # allows accessing columns by name, like pydantic_model.model_validate(dict(row))
             conn.row_factory = sqlite3.Row
             try:
                 yield conn

@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from personal_health.api.analysis import compute_summary
 from personal_health.api.operation_ids import OperationId
@@ -13,6 +13,7 @@ from personal_health.api.schemas import (
     EntryCreate,
     EntryResponse,
     EntryUpdate,
+    GetEntriesRequest,
     PredictionResponse,
     SummaryResponse,
     UserProfileRequest,
@@ -126,37 +127,18 @@ async def update_entry(entry: EntryUpdate) -> EntryResponse:
         if not existing:
             raise HTTPException(status_code=404, detail="Entry not found")
 
-        # Build update query for provided fields only
-        update_fields = []
-        params: list[str | int | float] = []
-        if entry.date is not None:
-            update_fields.append("date = ?")
-            params.append(entry.date)
-        if entry.meal is not None:
-            update_fields.append("meal = ?")
-            params.append(entry.meal)
-        if entry.alcohol is not None:
-            update_fields.append("alcohol = ?")
-            params.append(entry.alcohol)
-        if entry.stress is not None:
-            update_fields.append("stress = ?")
-            params.append(entry.stress)
-        if entry.sleep_hours is not None:
-            update_fields.append("sleep_hours = ?")
-            params.append(entry.sleep_hours)
-        if entry.pain_level is not None:
-            update_fields.append("pain_level = ?")
-            params.append(entry.pain_level)
-        if entry.notes is not None:
-            update_fields.append("notes = ?")
-            params.append(entry.notes)
+        # Build update query from provided fields only (exclude None values and id)
+        update_data = entry.model_dump(exclude_none=True, exclude={"id"})
 
-        if not update_fields:
+        if not update_data:
             # No fields to update, return existing ID
             return EntryResponse(status="ok", entry_id=entry.id)
 
-        # Execute update
+        # Build SQL dynamically
+        update_fields = [f"{field} = ?" for field in update_data.keys()]
+        params = list(update_data.values())
         params.append(entry.id)  # For WHERE clause
+
         query = f"UPDATE entries SET {', '.join(update_fields)} WHERE id = ?"
 
         try:
@@ -178,93 +160,44 @@ async def update_entry(entry: EntryUpdate) -> EntryResponse:
 
 @router.get(
     "/get_entries",
-    operation_id=OperationId.GET_ENTRIES.operation_id,
     response_model=EntriesResponse,
+    operation_id=OperationId.GET_ENTRIES.operation_id,
 )
 async def get_entries(
-    limit: int = 10,
-    offset: int = 0,
-    start_date: str | None = None,
-    end_date: str | None = None,
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    start_date: str | None = Query(None),
+    end_date: str | None = Query(None),
 ) -> EntriesResponse:
-    """Get recent health entries with optional date range filtering.
-
-    Args:
-        limit: Number of entries to return.
-        offset: Number of entries to skip.
-        start_date: Filter entries on or after this date (YYYY-MM-DD format, optional).
-        end_date: Filter entries on or before this date (YYYY-MM-DD format, optional).
-
-    Returns:
-        List of entries.
-
-    Raises:
-        HTTPException: If query fails or date format invalid.
-    """
+    """Get recent health entries with optional date range filtering."""
     try:
-        logger.debug(f"get_entries params: {limit=} {offset=} {start_date=} {end_date=}")
+        params = GetEntriesRequest(
+            limit=limit, offset=offset, start_date=start_date, end_date=end_date
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
 
-        # Validate date formats if provided
-        from datetime import datetime
+    query = "SELECT * FROM entries WHERE 1=1"
+    query_params = []
 
-        if start_date:
-            try:
-                datetime.strptime(start_date, "%Y-%m-%d")
-            except ValueError:
-                logger.warning(f"Invalid start_date format: {start_date}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid start_date format. Expected YYYY-MM-DD, got: {start_date}",
-                ) from None
+    if params.start_date:
+        query += " AND date >= ?"
+        query_params.append(params.start_date)
 
-        if end_date:
-            try:
-                datetime.strptime(end_date, "%Y-%m-%d")
-            except ValueError:
-                logger.warning(f"Invalid end_date format: {end_date}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid end_date format. Expected YYYY-MM-DD, got: {end_date}",
-                ) from None
+    if params.end_date:
+        query += " AND date <= ?"
+        query_params.append(params.end_date)
 
-        # Build dynamic query with optional date filters
-        query = "SELECT * FROM entries"
-        where_clauses = []
-        params: list[str | int] = [limit, offset]
+    query += " ORDER BY date DESC LIMIT ? OFFSET ?"
+    query_params.extend([str(params.limit), str(params.offset)])
 
-        if start_date:
-            where_clauses.append("date >= ?")
-            params.insert(0, start_date)
-        if end_date:
-            where_clauses.append("date <= ?")
-            # Insert after start_date if present, otherwise at beginning
-            params.insert(1 if start_date else 0, end_date)
+    with db.connect() as conn:
+        cursor = conn.cursor()
+        rows = cursor.execute(query, tuple(query_params)).fetchall()
 
-        if where_clauses:
-            query += " WHERE " + " AND ".join(where_clauses)
-
-        query += " ORDER BY date DESC LIMIT ? OFFSET ?"
-
-        rows = db.execute(query, tuple(params))
-        entries = [
-            Entry(
-                id=r[0],
-                date=r[1],
-                meal=r[2],
-                alcohol=r[3],
-                stress=r[4],
-                sleep_hours=r[5],
-                pain_level=r[6],
-                notes=r[7],
-                created_at=r[8],
-            )
-            for r in rows
-        ]
+        entries = [Entry.model_validate(dict(r)) for r in rows]
         logger.debug(f"get_entries {len(entries)=}")
         return EntriesResponse(count=len(entries), entries=entries)
-    except DatabaseError as e:
-        logger.error(f"Failed to retrieve entries: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve entries") from e
 
 
 @router.get(
@@ -292,19 +225,7 @@ async def get_entry(entry_id: str) -> Entry:
             logger.warning(f"Entry not found: {entry_id}")
             raise HTTPException(status_code=404, detail="Entry not found")
 
-        row = rows[0]
-        entry = Entry(
-            id=row[0],
-            date=row[1],
-            meal=row[2],
-            alcohol=row[3],
-            stress=row[4],
-            sleep_hours=row[5],
-            pain_level=row[6],
-            notes=row[7],
-            created_at=row[8],
-        )
-        return entry
+        return Entry.model_validate(dict(rows[0]))
 
     except HTTPException:
         raise

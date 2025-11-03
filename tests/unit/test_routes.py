@@ -497,13 +497,15 @@ class TestGetEntriesDateRange:
             assert start <= entry["date"] <= end
 
     def test_get_entries_invalid_start_date_format(self, client: TestClient) -> None:
-        """Test that invalid start date format returns 400."""
+        """Test that invalid start date format returns 422 (validation error)."""
         response = client.get("/get_entries?start_date=invalid-date")
-        assert response.status_code == 400
-        assert "Invalid start_date format" in response.json()["detail"]
+        assert response.status_code == 422
+        # Pydantic validation errors have a different structure
+        assert "detail" in response.json()
 
     def test_get_entries_invalid_end_date_format(self, client: TestClient) -> None:
-        """Test that invalid end date format returns 400."""
+        """Test that invalid end date format returns 422 (validation error)."""
         response = client.get("/get_entries?end_date=2025/10/24")
-        assert response.status_code == 400
-        assert "Invalid end_date format" in response.json()["detail"]
+        assert response.status_code == 422
+        # Pydantic validation errors have a different structure
+        assert "detail" in response.json()

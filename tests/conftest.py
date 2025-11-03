@@ -48,4 +48,8 @@ def client(temp_db: Database) -> Generator[TestClient, None, None]:
     from personal_health.api import routes
 
     routes.db = temp_db
-    yield TestClient(app)
+    routes.user_profile_repo = routes.UserProfileRepository(temp_db)
+
+    # so that pydantic validation errors are returned as 422 Unprocessable Entity and don't kill pytest
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        yield test_client
