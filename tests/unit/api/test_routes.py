@@ -5,19 +5,20 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from personal_health.api.dependencies import get_user_profile_repo
+from personal_health.core import create_app
+
 
 class TestResetDatabase:
     """Tests for /reset_database endpoint."""
 
-    @patch("personal_health.api.routes.db")
-    def test_reset_database_success(self, mock_db: MagicMock, client: TestClient) -> None:
+    def test_reset_database_success(self, client: TestClient) -> None:
         """Test resetting the database."""
         response = client.post("/reset_database")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
         assert "message" in data
-        assert mock_db.execute.call_count == 3
 
 
 class TestUserProfile:
@@ -54,18 +55,20 @@ class TestUserProfile:
         assert data["preferences"] == {"milk_type": "oat"}
         assert data["habits"] == {"typical_breakfast": "oatmeal"}
 
-    @patch("personal_health.api.routes.user_profile_repo")
-    def test_get_user_profile_creation_failure(
-        self, mock_repo: MagicMock, client: TestClient
-    ) -> None:
+    def test_get_user_profile_creation_failure(self, client: TestClient) -> None:
         """Test GET profile handles failure to create default profile."""
-        # Mock repo.get() to return None even after create_or_update is called
+        # Create a new app with mocked user_profile_repo
+        app = create_app()
+        mock_repo = MagicMock()
         mock_repo.get.return_value = None
         mock_repo.create_or_update.return_value = None
+        app.dependency_overrides[get_user_profile_repo] = lambda: mock_repo
 
-        response = client.get("/user/profile?user_id=fail_user")
-        assert response.status_code == 500
-        assert "Failed to retrieve user profile" in response.json()["detail"]
+        # Create a new client with the mocked app
+        with TestClient(app, raise_server_exceptions=False) as test_client:
+            response = test_client.get("/user/profile?user_id=fail_user")
+            assert response.status_code == 500
+            assert "Failed to retrieve user profile" in response.json()["detail"]
 
 
 class TestAddEntry:

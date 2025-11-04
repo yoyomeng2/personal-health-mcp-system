@@ -4,6 +4,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from personal_health.api.analysis import compute_summary
+from personal_health.api.dependencies import DatabaseDep, UserProfileRepoDep
 from personal_health.api.operation_ids import OperationId
 from personal_health.api.schemas import (
     CorrelationResponse,
@@ -19,7 +20,6 @@ from personal_health.api.schemas import (
     UserProfileRequest,
     UserProfileResponse,
 )
-from personal_health.db import Database, UserProfileRepository
 from personal_health.db.schemas import EntrySchema, UserProfileSchema
 from personal_health.exceptions import DatabaseError, DuplicateEntryError
 from personal_health.logging_config import get_logger
@@ -30,8 +30,6 @@ from personal_health.utils import generate_entry_id
 
 logger = get_logger(__name__)
 router = APIRouter()
-db = Database()
-user_profile_repo = UserProfileRepository(db)
 
 
 @router.get("/", tags=["health"])
@@ -59,13 +57,14 @@ async def health_check() -> dict:
 @router.post(
     "/add_entry", operation_id=OperationId.ADD_ENTRY.operation_id, response_model=EntryResponse
 )
-async def add_entry(entry: EntryCreate) -> EntryResponse:
+async def add_entry(entry: EntryCreate, db: DatabaseDep) -> EntryResponse:
     """Add a new health entry.
 
     Entries are deduplicated via deterministic ID generation. If an entry already exists, returns existing entry_id.
 
     Args:
-        entry: Health entry data.
+        entry (EntryCreate): Health entry data.
+        db (DatabaseDep): Database dependency (injected).
 
     Returns:
         Response with entry ID (existing or newly created).
@@ -109,7 +108,7 @@ async def add_entry(entry: EntryCreate) -> EntryResponse:
     operation_id=OperationId.UPDATE_ENTRY.operation_id,
     response_model=EntryResponse,
 )
-async def update_entry(entry: EntryUpdate) -> EntryResponse:
+async def update_entry(entry: EntryUpdate, db: DatabaseDep) -> EntryResponse:
     """Update an existing health entry.
 
     Only provided fields will be updated.
@@ -167,6 +166,7 @@ async def update_entry(entry: EntryUpdate) -> EntryResponse:
     operation_id=OperationId.GET_ENTRIES.operation_id,
 )
 async def get_entries(
+    db: DatabaseDep,
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
     start_date: str | None = Query(None),
@@ -206,7 +206,7 @@ async def get_entries(
 @router.get(
     "/get_entry/{entry_id}", operation_id=OperationId.GET_ENTRY.operation_id, response_model=Entry
 )
-async def get_entry(entry_id: str) -> Entry:
+async def get_entry(entry_id: str, db: DatabaseDep) -> Entry:
     """Get a single health entry by ID.
 
     Args:
@@ -242,7 +242,12 @@ async def get_entry(entry_id: str) -> Entry:
     operation_id=OperationId.EXTRACT_FEATURES.operation_id,
     response_model=ExtractionResponse,
 )
-async def extract_features(entry_id: str, user_id: str = "default_user") -> ExtractionResponse:
+async def extract_features(
+    db: DatabaseDep,
+    user_profile_repo: UserProfileRepoDep,
+    entry_id: str,
+    user_id: str = "default_user",
+) -> ExtractionResponse:
     """Extract binary features from meal description using LLM.
 
     This endpoint uses the configured LLM provider to analyze the meal description
@@ -306,7 +311,7 @@ async def extract_features(entry_id: str, user_id: str = "default_user") -> Extr
 
 
 @router.post("/reset_database", operation_id=OperationId.RESET_DATABASE.operation_id)
-async def reset_database() -> dict:
+async def reset_database(db: DatabaseDep) -> dict:
     """Reset the database by deleting all entries.
 
     Returns:
@@ -318,7 +323,6 @@ async def reset_database() -> dict:
     try:
         db.execute("DELETE FROM entries")
         db.execute("DELETE FROM user_profile")
-        db.execute("DELETE from _migrations")
         logger.info("Database reset: all tables deleted")
         return {"status": "ok", "message": "Database reset successfully"}
     except DatabaseError as e:
@@ -331,10 +335,11 @@ async def reset_database() -> dict:
     operation_id=OperationId.GET_SUMMARY.operation_id,
     response_model=SummaryResponse,
 )
-async def summarize_recent(window_days: int = 7) -> SummaryResponse:
+async def summarize_recent(db: DatabaseDep, window_days: int = 7) -> SummaryResponse:
     """Get summary of recent health data.
 
     Args:
+        db (DatabaseDep): Database dependency (injected).
         window_days: Number of days to summarize.
 
     Returns:
@@ -389,11 +394,12 @@ _predict_next_day_predictor_dep = Depends(_get_predictor)
     response_model=PredictionResponse,
 )
 async def predict_next_day(
-    date: str, predictor: HealthPredictor = _predict_next_day_predictor_dep
+    db: DatabaseDep, date: str, predictor: HealthPredictor = _predict_next_day_predictor_dep
 ) -> PredictionResponse:
     """Predict pain level for the day after the given date.
 
     Args:
+        db (DatabaseDep): Database dependency (injected).
         date (str): Reference date in YYYY-MM-DD format. Prediction will be for the next day.
         predictor (HealthPredictor, optional): Injected HealthPredictor dependency.
 
@@ -462,10 +468,14 @@ async def analyze_pain_triggers() -> dict:
     response_model=UserProfileResponse,
     tags=["user-profile"],
 )
-async def get_user_profile(user_id: str = "default_user") -> UserProfileResponse:
+async def get_user_profile(
+    user_profile_repo: UserProfileRepoDep,
+    user_id: str = Query("default_user"),
+) -> UserProfileResponse:
     """Get user dietary profile.
 
     Args:
+        user_profile_repo (UserProfileRepoDep): User profile repository dependency (injected).
         user_id (str): User ID. Defaults to 'default_user'.
 
     Returns:
@@ -520,12 +530,15 @@ async def get_user_profile(user_id: str = "default_user") -> UserProfileResponse
     tags=["user-profile"],
 )
 async def update_user_profile(
-    profile_data: UserProfileRequest, user_id: str = "default_user"
+    profile_data: UserProfileRequest,
+    user_profile_repo: UserProfileRepoDep,
+    user_id: str = Query("default_user"),
 ) -> UserProfileResponse:
     """Create or update user dietary profile.
 
     Args:
         profile_data: User profile data.
+        user_profile_repo (UserProfileRepoDep): User profile repository dependency (injected).
         user_id (str): User ID. Defaults to 'default_user'.
 
     Returns:

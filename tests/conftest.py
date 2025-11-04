@@ -47,16 +47,22 @@ def repo(db: Database) -> UserProfileRepository:
 def client(db: Database) -> Generator[TestClient, None, None]:
     """Create a FastAPI test client with a temporary database.
 
-    Patches the routes module to use the test database instead of the
-    production database.
+    Uses FastAPI's dependency override to inject test database.
     """
-    app = create_app()
-    # Replace the global database instance in the routes module
-    from personal_health.api import routes
+    from personal_health.api.dependencies import get_db, get_user_profile_repo
 
-    routes.db = db
-    routes.user_profile_repo = routes.UserProfileRepository(db)
+    app = create_app()
+
+    # Create test user profile repository
+    test_repo = UserProfileRepository(db)
+
+    # Override FastAPI dependencies to use test database
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_user_profile_repo] = lambda: test_repo
 
     # so that pydantic validation errors are returned as 422 Unprocessable Entity and don't kill pytest
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
+
+    # Clean up overrides
+    app.dependency_overrides.clear()
