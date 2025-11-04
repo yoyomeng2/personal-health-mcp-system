@@ -132,8 +132,9 @@ dmypy.json
 *~
 .DS_Store
 
-# Runtime data
+# Runtime and other data
 data/
+*.csv
 
 # Environment files
 .env

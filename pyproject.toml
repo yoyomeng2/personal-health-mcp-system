@@ -42,6 +42,7 @@ Repository = "https://github.com/yoyomeng2/personal-health-mcp-system"
 Issues = "https://github.com/yoyomeng2/personal-health-mcp-system/issues"
 
 [project.scripts]
+generate-sample-data = "scripts.generate_sample_data:main"
 init-db = "scripts.init_db:main"
 export-sqlite-to-csv = "scripts.export_sqlite_to_csv:main"
 import-csv-to-sqlite = "scripts.import_csv_to_sqlite:main"

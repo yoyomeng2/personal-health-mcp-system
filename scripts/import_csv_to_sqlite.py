@@ -2,15 +2,13 @@
 """CSV -> SQLite importer for the personal_health project.
 
 Usage (from repo root):
-  uv run python -m src.personal_health.scripts.csv_to_sqlite --csv health_db_entries_export.csv --db data/health.db --backup
+  uv run import-csv-to-sqlite --csv health_db_entries_export.csv --db data/health.dev.db --backup
 
 Features:
-- Reads and executes `src/personal_health/db/schema.sql` to ensure the `entries` table exists.
+- Uses the Database class to ensure schema is initialized via migrations.
 - Parses CSV rows and converts numeric fields (stress, sleep_hours, pain_level).
 - Skips duplicate ids by default; use --replace to replace existing rows.
 - Optionally backups the target DB before writing.
-
-This script uses only the Python stdlib.
 """
 
 from __future__ import annotations
@@ -23,11 +21,8 @@ import shutil
 import sqlite3
 from collections.abc import Iterable
 
+from personal_health.db import Database
 from personal_health.utils import generate_entry_id
-
-SCRIPT_DIR = os.path.dirname(__file__)
-ROOT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-SCHEMA_PATH = os.path.join(ROOT_DIR, "src", "personal_health", "db", "schema.sql")
 
 
 def _to_int(val: str) -> int | None:
@@ -52,9 +47,7 @@ def _to_float(val: str) -> float | None:
         return None
 
 
-def read_schema(schema_path: str) -> str:
-    with open(schema_path, encoding="utf-8") as f:
-        return f.read()
+# Schema initialization is now handled by Database class via migrations
 
 
 def parse_row(row: list[str]) -> tuple:
@@ -96,10 +89,6 @@ def iter_csv_rows(csv_path: str) -> Iterable[tuple]:
         next(reader, None)
         for row in reader:
             yield parse_row(row)
-
-
-def ensure_schema(conn: sqlite3.Connection, schema_sql: str) -> None:
-    conn.executescript(schema_sql)
 
 
 def insert_rows(
@@ -164,7 +153,6 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Import CSV into SQLite using project schema")
     parser.add_argument("--csv", required=True, help="Path to CSV file to import")
     parser.add_argument("--db", required=True, help="Path to sqlite DB file to write")
-    parser.add_argument("--schema", default=SCHEMA_PATH, help="Path to schema.sql to execute")
     parser.add_argument(
         "--backup", action="store_true", help="Backup the existing DB before writing"
     )
@@ -184,12 +172,13 @@ def main(argv: list[str] | None = None) -> int:
         dest = backup_db(db_path)
         print(f"Backed up {db_path} -> {dest}")
 
-    schema_sql = read_schema(args.schema)
-
+    # Initialize database schema using Database class (applies migrations)
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    db = Database(db_path)
+    db.init()
+
     conn = sqlite3.connect(db_path)
     try:
-        ensure_schema(conn, schema_sql)
         rows = iter_csv_rows(csv_path)
         # Determine upsert behavior: default to upsert; --no-upsert disables it
         upsert = not args.no_upsert
