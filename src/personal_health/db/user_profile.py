@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+from personal_health.db import Database
 from personal_health.db.schemas import UserProfileSchema
 from personal_health.exceptions import DatabaseError
 from personal_health.logging_config import get_logger
-
-if TYPE_CHECKING:
-    from personal_health.db.manager import SQLiteDatabase
 
 logger = get_logger(__name__)
 
@@ -18,7 +16,7 @@ logger = get_logger(__name__)
 class UserProfileRepository:
     """Repository for user profile database operations."""
 
-    def __init__(self, db: SQLiteDatabase) -> None:
+    def __init__(self, db: Database) -> None:
         """Initialize repository with database instance.
 
         Args:
@@ -102,54 +100,27 @@ class UserProfileRepository:
         except sqlite3.Error as e:
             raise DatabaseError(f"Error retrieving user profile: {e}") from e
 
-    def create_or_update(
-        self,
-        user_id: str = "default_user",
-        dietary_restrictions: str | None = None,
-        allergies: str | None = None,
-        preferences: str | None = None,
-        habits: str | None = None,
-    ) -> None:
-        """Create or update user profile.
+    def create_or_update(self, profile: UserProfileSchema) -> None:
+        """Create or update user profile from a Pydantic model.
 
         Args:
-            user_id (str): User ID. Defaults to 'default_user'.
-            dietary_restrictions (str, optional): JSON array of restrictions.
-            allergies (str, optional): JSON array of allergies.
-            preferences (str, optional): JSON object of preferences.
-            habits (str, optional): JSON object of habits.
+            profile (UserProfileSchema): User profile model with data to create/update.
 
         Raises:
             DatabaseError: If insert/update fails.
         """
         try:
-            # Create model instance with provided data and defaults
-            schema = self.schema(
-                id=user_id,
-                dietary_restrictions=dietary_restrictions or "[]",
-                allergies=allergies or "[]",
-                preferences=preferences or "{}",
-                habits=habits or "{}",
-                date_last_confirmed=None,
-            )
-
             with self.db.connect() as conn:
                 cur = conn.cursor()
-                cur.execute("SELECT 1 FROM user_profile WHERE id = ?", (user_id,))
+                cur.execute("SELECT 1 FROM user_profile WHERE id = ?", (profile.id,))
                 exists = cur.fetchone() is not None
 
             if exists:
-                self._update(
-                    schema,
-                    update_only_provided=dietary_restrictions is not None
-                    or allergies is not None
-                    or preferences is not None
-                    or habits is not None,
-                )
+                self._update(profile)
             else:
-                self._create(schema)
+                self._create(profile)
 
-            logger.info(f"User profile {'updated' if exists else 'created'}: {user_id}")
+            logger.info(f"User profile {'updated' if exists else 'created'}: {profile.id}")
         except sqlite3.Error as e:
             raise DatabaseError(f"Error managing user profile: {e}") from e
 
@@ -181,14 +152,11 @@ class UserProfileRepository:
     def _update(
         self,
         schema: UserProfileSchema,
-        update_only_provided: bool = True,
     ) -> None:
         """Update existing profile.
 
         Args:
-            profile (UserProfileModel): User profile model instance.
-            update_only_provided (bool): If True, only update fields that were explicitly
-                provided. If False, update all fields from the model.
+            schema (UserProfileSchema): User profile schema instance.
         """
         # Get all data fields except timestamps
         data = schema.model_dump(exclude={"created_at", "updated_at", "date_last_confirmed", "id"})
@@ -219,6 +187,7 @@ class UserProfileRepository:
         with self.db.connect() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
+            conn.commit()
 
     def _create(
         self,
@@ -246,3 +215,4 @@ class UserProfileRepository:
         with self.db.connect() as conn:
             cur = conn.cursor()
             cur.execute(query, tuple(values))
+            conn.commit()

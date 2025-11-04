@@ -23,6 +23,7 @@ class OperationId(Enum):
     UPDATE_ENTRY = Operation("update_entry", allow_mcp=True)
     GET_ENTRY = Operation("get_entry", allow_mcp=True)
     GET_ENTRIES = Operation("get_entries", allow_mcp=True)
+    EXTRACT_FEATURES = Operation("extract_features", allow_mcp=True)
     GET_SUMMARY = Operation("get_summary", allow_mcp=True)
     GET_PREDICTION = Operation("get_prediction", allow_mcp=True)
     ANALYZE_TRIGGERS = Operation("analyze_triggers", allow_mcp=True)

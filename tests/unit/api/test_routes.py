@@ -573,6 +573,55 @@ class TestGetEntriesDateRange:
         assert "detail" in response.json()
 
 
+class TestExtractFeatures:
+    """Tests for POST /entries/{entry_id}/extract_features endpoint."""
+
+    @patch("personal_health.api.routes.extract_features_from_meal")
+    def test_extract_features_success(self, mock_extract: MagicMock, client: TestClient) -> None:
+        """Test successful feature extraction from entry."""
+        # Create an entry first
+        entry_data = {
+            "date": "2025-11-04",
+            "meal": "Oatmeal with almond milk",
+            "alcohol": "none",
+            "stress": 2,
+            "sleep_hours": 7.5,
+            "pain_level": 1,
+        }
+        response = client.post("/add_entry", json=entry_data)
+        assert response.status_code == 200
+        entry_id = response.json()["entry_id"]
+
+        # Mock the extraction response
+        from personal_health.ml.providers.base import ExtractedFeatures
+
+        mock_extract.return_value = ExtractedFeatures(
+            features={"dairy": 0, "gluten": 1},
+            confidence={"dairy": "explicit", "gluten": "inferred"},
+            reasoning={
+                "dairy": "Almond milk is dairy-free",
+                "gluten": "Oatmeal typically contains gluten",
+            },
+        )
+
+        # Call extraction endpoint
+        response = client.post(f"/entries/{entry_id}/extract_features")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["entry_id"] == entry_id
+        assert data["features"]["dairy"] == 0
+        assert data["features"]["gluten"] == 1
+        assert data["confidence"]["dairy"] == "explicit"
+        assert "reasoning" in data
+
+    def test_extract_features_entry_not_found(self, client: TestClient) -> None:
+        """Test extraction fails when entry doesn't exist."""
+        response = client.post("/entries/nonexistent-id/extract_features")
+        assert response.status_code == 404
+        assert "Entry not found" in response.json()["detail"]
+
+
 class TestMCPEndpoint:
     """Tests for /mcp endpoint availability."""
 

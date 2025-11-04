@@ -260,3 +260,43 @@ class UserProfileResponse(UserProfileRequest):
             }
         }
     )
+
+
+class ExtractionResponse(BaseModel):
+    """Response schema for feature extraction from meal description."""
+
+    entry_id: str = Field(..., description="ID of the entry that was processed")
+    features: dict[str, int | None] = Field(
+        ..., description="Extracted binary features (0, 1, or None for unknown)"
+    )
+    confidence: dict[str, str] = Field(
+        ...,
+        description="Confidence level for each feature: 'explicit', 'inferred', or 'unknown'",
+    )
+    reasoning: dict[str, str] = Field(..., description="Explanation for each feature decision")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "entry_id": "2025-11-04-abc123",
+                "features": {
+                    "dairy": 1,
+                    "gluten": 0,
+                    "high_fodmap": 1,
+                    "artificial_sweeteners": 0,
+                },
+                "confidence": {
+                    "dairy": "explicit",
+                    "gluten": "inferred",
+                    "high_fodmap": "inferred",
+                    "artificial_sweeteners": "explicit",
+                },
+                "reasoning": {
+                    "dairy": "Meal explicitly mentions 'cheese' which is a dairy product",
+                    "gluten": "Flour tortilla typically contains wheat/gluten",
+                    "high_fodmap": "Onions are high FODMAP ingredients",
+                    "artificial_sweeteners": "No artificial sweeteners mentioned or typical in tacos",
+                },
+            }
+        }
+    )

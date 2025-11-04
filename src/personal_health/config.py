@@ -32,10 +32,42 @@ class Config:
         if isinstance(config_path, str):
             config_path = Path(config_path)
 
-        self.config_path = config_path
-        self.env = env
-        self._config: dict[str, Any] = {}
+        self._config_path = config_path
+        self._env = env
+        self._base_config: dict[str, Any] = {}
         self._load_config()
+
+    @property
+    def config_path(self) -> Path:
+        """Get the configuration file path."""
+        return self._config_path
+
+    @property
+    def env(self) -> str:
+        """Get the current environment."""
+        return self._env
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get configuration value by dot-notation key.
+
+        Args:
+            key: Configuration key (e.g., "server.host", "database.path").
+            default: Default value if key not found.
+
+        Returns:
+            Configuration value or default.
+        """
+        # REFACTOR
+        keys = key.split(".")
+        value: Any = self._base_config
+        for k in keys:
+            if isinstance(value, dict):
+                value = value.get(k)
+                if value is None:
+                    return default
+            else:
+                return default
+        return value
 
     def _load_config(self) -> None:
         """Load and merge configuration files.
@@ -46,14 +78,14 @@ class Config:
         try:
             # Load main config
             with open(self.config_path) as f:
-                self._config = yaml.safe_load(f) or {}
+                self._base_config = yaml.safe_load(f) or {}
 
             # Load environment-specific config if it exists
             env_config_path = self.config_path.parent / "environments" / f"{self.env}.yaml"
             if env_config_path.exists():
                 with open(env_config_path) as f:
                     env_config = yaml.safe_load(f) or {}
-                self._merge_configs(self._config, env_config)
+                self._merge_configs(self._base_config, env_config)
 
         except FileNotFoundError as e:
             raise ConfigurationError(f"Configuration file not found: {self.config_path}") from e
@@ -72,27 +104,6 @@ class Config:
                 self._merge_configs(base[key], value)
             else:
                 base[key] = value
-
-    def get(self, key: str, default: Any = None) -> Any:
-        """Get configuration value by dot-notation key.
-
-        Args:
-            key: Configuration key (e.g., "server.host", "database.path").
-            default: Default value if key not found.
-
-        Returns:
-            Configuration value or default.
-        """
-        keys = key.split(".")
-        value: Any = self._config
-        for k in keys:
-            if isinstance(value, dict):
-                value = value.get(k)
-                if value is None:
-                    return default
-            else:
-                return default
-        return value
 
     def __getitem__(self, key: str) -> Any:
         """Get configuration value using bracket notation.

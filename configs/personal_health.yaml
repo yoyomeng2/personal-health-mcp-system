@@ -17,3 +17,11 @@ logging:
 
 models:
   predictor_path: "data/model_v1.pkl"
+
+llm:
+  provider: "openai"  # Options: "openai", "ollama"
+  model: "gpt-5o-mini"  # For OpenAI: gpt-4o-mini, gpt-4o, etc. For Ollama: llama3.2:latest, etc.
+  api_key_env: "OPENAI_API_KEY"  # Environment variable name for API key
+  base_url: null  # Optional: For Ollama use "http://localhost:11434/v1"
+  temperature: 0.0  # 0.0 for deterministic extraction
+  max_tokens: 1000  # Max tokens for response

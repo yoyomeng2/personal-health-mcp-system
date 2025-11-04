@@ -1,5 +1,4 @@
 """MCP routes - HTTP endpoints."""
-
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,6 +12,7 @@ from personal_health.api.schemas import (
     EntryCreate,
     EntryResponse,
     EntryUpdate,
+    ExtractionResponse,
     GetEntriesRequest,
     PredictionResponse,
     SummaryResponse,
@@ -20,9 +20,12 @@ from personal_health.api.schemas import (
     UserProfileResponse,
 )
 from personal_health.db import Database, UserProfileRepository
+from personal_health.db.schemas import EntrySchema, UserProfileSchema
 from personal_health.exceptions import DatabaseError, DuplicateEntryError
 from personal_health.logging_config import get_logger
 from personal_health.ml import HealthPredictor
+from personal_health.ml.feature_extraction import extract_features_from_meal
+from personal_health.ml.providers.base import UserProfile
 from personal_health.utils import generate_entry_id
 
 logger = get_logger(__name__)
@@ -234,6 +237,74 @@ async def get_entry(entry_id: str) -> Entry:
         raise HTTPException(status_code=500, detail="Failed to get entry") from e
 
 
+@router.post(
+    "/entries/{entry_id}/extract_features",
+    operation_id=OperationId.EXTRACT_FEATURES.operation_id,
+    response_model=ExtractionResponse,
+)
+async def extract_features(entry_id: str, user_id: str = "default_user") -> ExtractionResponse:
+    """Extract binary features from meal description using LLM.
+
+    This endpoint uses the configured LLM provider to analyze the meal description
+    and extract binary features (0/1/None) for dietary components like dairy, gluten, etc.
+    It considers the user's profile for context-aware inference.
+
+    Args:
+        entry_id (str): Entry ID to extract features from.
+        user_id (str, optional): User ID for profile context. Defaults to "default_user".
+
+    Returns:
+        ExtractionResponse: Extracted features with confidence and reasoning.
+
+    Raises:
+        HTTPException: If entry not found, profile issues, or extraction fails.
+    """
+    try:
+        # Get the entry
+        rows = db.execute("SELECT * FROM entries WHERE id = ?", (entry_id,))
+        if not rows:
+            logger.warning(f"Entry not found for extraction: {entry_id}")
+            raise HTTPException(status_code=404, detail="Entry not found")
+
+        entry_dict = dict(rows[0])
+        entry = EntrySchema.model_validate(entry_dict)
+
+        # Get user profile
+        db_profile = user_profile_repo.get(user_id)
+        if not db_profile:
+            logger.warning(f"User profile not found: {user_id}, using defaults")
+            # Create default profile
+            default_profile = UserProfileSchema(id=user_id, date_last_confirmed=None)
+            user_profile_repo.create_or_update(default_profile)
+            db_profile = user_profile_repo.get(user_id)
+
+        if not db_profile:
+            raise HTTPException(status_code=500, detail="Failed to create user profile")
+
+        user_profile = UserProfile.from_db(db_profile)
+
+        # Extract features using LLM
+        logger.info(f"Extracting features for entry {entry_id} with user {user_id}")
+        extracted = extract_features_from_meal(entry, user_profile)
+
+        # Return response
+        return ExtractionResponse(
+            entry_id=entry_id,
+            features=extracted.features,
+            confidence=extracted.confidence,
+            reasoning=extracted.reasoning,
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Configuration error during extraction: {e}")
+        raise HTTPException(status_code=500, detail=f"Configuration error: {e!s}") from e
+    except Exception as e:
+        logger.error(f"Failed to extract features: {e}")
+        raise HTTPException(status_code=500, detail=f"Feature extraction failed: {e!s}") from e
+
+
 @router.post("/reset_database", operation_id=OperationId.RESET_DATABASE.operation_id)
 async def reset_database() -> dict:
     """Reset the database by deleting all entries.
@@ -246,7 +317,9 @@ async def reset_database() -> dict:
     """
     try:
         db.execute("DELETE FROM entries")
-        logger.info("Database reset: all entries deleted")
+        db.execute("DELETE FROM user_profile")
+        db.execute("DELETE from _migrations")
+        logger.info("Database reset: all tables deleted")
         return {"status": "ok", "message": "Database reset successfully"}
     except DatabaseError as e:
         logger.error(f"Failed to reset database: {e}")
@@ -407,7 +480,9 @@ async def get_user_profile(user_id: str = "default_user") -> UserProfileResponse
 
         if not profile:
             logger.info(f"Profile not found, creating default: {user_id}")
-            user_profile_repo.create_or_update(user_id)
+
+            default_profile = UserProfileSchema(id=user_id, date_last_confirmed=None)
+            user_profile_repo.create_or_update(default_profile)
             profile = user_profile_repo.get(user_id)
 
         if not profile:
@@ -468,13 +543,16 @@ async def update_user_profile(
         preferences_json = json.dumps(profile_data.preferences)
         habits_json = json.dumps(profile_data.habits)
 
-        user_profile_repo.create_or_update(
-            user_id=user_id,
+        profile_schema = UserProfileSchema(
+            id=user_id,
             dietary_restrictions=dietary_restrictions_json,
             allergies=allergies_json,
             preferences=preferences_json,
             habits=habits_json,
+            date_last_confirmed=None,
         )
+
+        user_profile_repo.create_or_update(profile_schema)
 
         # Retrieve updated profile
         profile = user_profile_repo.get(user_id)
