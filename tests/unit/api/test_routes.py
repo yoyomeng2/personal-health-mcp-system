@@ -599,11 +599,11 @@ class TestExtractFeatures:
         from personal_health.ml.providers.base import ExtractedFeatures
 
         mock_extract.return_value = ExtractedFeatures(
-            features={"dairy": 0, "gluten": 1},
-            confidence={"dairy": "explicit", "gluten": "inferred"},
+            features={"has_dairy": 0, "is_gluten_free": 1},
+            confidence={"has_dairy": "explicit", "is_gluten_free": "inferred"},
             reasoning={
-                "dairy": "Almond milk is dairy-free",
-                "gluten": "Oatmeal typically contains gluten",
+                "has_dairy": "Almond milk is dairy-free",
+                "is_gluten_free": "Oatmeal typically contains gluten",
             },
         )
 
@@ -613,9 +613,9 @@ class TestExtractFeatures:
 
         data = response.json()
         assert data["entry_id"] == entry_id
-        assert data["features"]["dairy"] == 0
-        assert data["features"]["gluten"] == 1
-        assert data["confidence"]["dairy"] == "explicit"
+        assert data["features"]["has_dairy"] == 0
+        assert data["features"]["is_gluten_free"] == 1
+        assert data["confidence"]["has_dairy"] == "explicit"
         assert "reasoning" in data
 
     def test_extract_features_entry_not_found(self, client: TestClient) -> None:

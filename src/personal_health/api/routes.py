@@ -292,6 +292,20 @@ async def extract_features(
         logger.info(f"Extracting features for entry {entry_id} with user {user_id}")
         extracted = extract_features_from_meal(entry, user_profile)
 
+        # Update entry with extracted features
+        update_fields = []
+        update_values: list[str] = []
+        for feature_name, feature_value in extracted.features.items():
+            if feature_value is not None:  # Only update non-null values
+                update_fields.append(f"{feature_name} = ?")
+                update_values.append(str(feature_value))
+
+        if update_fields:
+            update_query = f"UPDATE entries SET {', '.join(update_fields)} WHERE id = ?"
+            update_values.append(entry_id)
+            db.execute(update_query, tuple(update_values))
+            logger.info(f"Updated {len(update_fields)} features for entry {entry_id}")
+
         # Return response
         return ExtractionResponse(
             entry_id=entry_id,
