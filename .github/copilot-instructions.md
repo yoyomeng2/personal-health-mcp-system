@@ -10,6 +10,7 @@
 - Build things as a reusable package, not just a script, or CLI tool.
 - Always include a .gitignore file
 - Always include a pyproject.toml file
+- For a python script or CLI tool, always set it up in the pyproject.toml project.scripts section so that they can seamlessly import package modules.
 - All project settings should be managed in pyproject.toml if possible.
 - Always include a .pre-commit-config.yaml file
 - All pre-commit hooks should be managed in .pre-commit-config.yaml if possible.
@@ -27,6 +28,7 @@
 - Always structure the project according to the PROJECT STRUCTURE section below.
 - When running/providing python or uv-managed virtual environment related commands in the terminal, prefix with uv run.
 - If a recommendation is not captured in these instructions, ask if it should be added to these instructions.
+- Watch for lines like `# REFACTOR: <reason>` for inline feedback about potential refactors.
 
 ## PROJECT STRUCTURE
 
@@ -73,7 +75,8 @@ Legend:
 │       └── test_data.yaml          # Test data
 ├── .pre-commit-config.yaml         # Pre-commit hooks configuration
 └── scripts/                        # Utility scripts
-    └── <file_name>.sh|py           # Any utility scripts
+    ├── shell/                      # Shell scripts
+    └── <file_name>.py              # Utility scripts
 ```
 
 ## PERFORMANCE CONSIDERATIONS
@@ -100,6 +103,8 @@ Legend:
 - Always use pytest
 - Always default to writing unit tests, do not create integration tests unless specifically asked.
 - We need high test coverage on the most critical functions, classes, and processes.
+- Add tests incrementally, one at a time, checking coverage after each addition to identify remaining gaps.
+- Focus on testing the main logic paths; exception handling blocks generally don't need dedicated tests unless they contain branching logic or complex error handling.
 - If you are working on tests, and you want to modify the source code to fit what is being tested, please summarize and ask if you should continue. There are very few scenarios where we should be modifying our code to fit the test.
 
 ## INTERACTION GUIDANCE
