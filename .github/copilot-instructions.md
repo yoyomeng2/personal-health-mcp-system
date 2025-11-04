@@ -180,3 +180,8 @@ If there is any uncertainty about whether to prompt, always err on the side of a
 - Implement proper access controls for sensitive operations.
 - Be mindful of potential SQL injection vulnerabilities in database queries.
 - Consider data privacy implications when logging and storing information.
+
+## PERSONAL HEALTH PROJECT
+
+- When querying or manipulating health data, always use the Personal Health MCP tools (mcp_personal-heal_*) instead of direct database queries
+- These tools interact with the running FastAPI server and provide the actual application API
