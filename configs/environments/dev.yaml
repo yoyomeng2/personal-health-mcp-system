@@ -4,5 +4,9 @@
 server:
   debug: true
 
+database:
+  path: "data/health.dev.db"
+  timeout: 30
+
 logging:
   level: "DEBUG"

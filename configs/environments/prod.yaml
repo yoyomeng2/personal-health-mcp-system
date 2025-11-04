@@ -6,5 +6,9 @@ server:
   port: 8080
   debug: false
 
+database:
+  path: "data/health.prod.db"
+  timeout: 30
+
 logging:
   level: "WARNING"
