@@ -6,6 +6,68 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 
+class TestResetDatabase:
+    """Tests for /reset_database endpoint."""
+
+    @patch("personal_health.api.routes.db")
+    def test_reset_database_success(self, mock_db: MagicMock, client: TestClient) -> None:
+        """Test resetting the database."""
+        response = client.post("/reset_database")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert "message" in data
+        assert mock_db.execute.call_count == 3
+
+
+class TestUserProfile:
+    """Tests for /user/profile endpoint."""
+
+    def test_get_user_profile_default_user(self, client: TestClient) -> None:
+        """Test getting default user profile creates it if not exists."""
+        response = client.get("/user/profile")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == "default_user"
+        assert data["dietary_restrictions"] == []
+        assert data["allergies"] == []
+        assert data["preferences"] == {}
+        assert data["habits"] == {}
+        assert "created_at" in data
+        assert "updated_at" in data
+        assert "profile_stale" in data
+
+    def test_update_user_profile_success(self, client: TestClient) -> None:
+        """Test updating user profile with valid data."""
+        profile_data = {
+            "dietary_restrictions": ["gluten-free", "vegan"],
+            "allergies": ["peanuts"],
+            "preferences": {"milk_type": "oat"},
+            "habits": {"typical_breakfast": "oatmeal"},
+        }
+        response = client.put("/user/profile?user_id=test_user", json=profile_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == "test_user"
+        assert data["dietary_restrictions"] == ["gluten-free", "vegan"]
+        assert data["allergies"] == ["peanuts"]
+        assert data["preferences"] == {"milk_type": "oat"}
+        assert data["habits"] == {"typical_breakfast": "oatmeal"}
+
+    @patch("personal_health.api.routes.user_profile_repo")
+    def test_get_user_profile_creation_failure(
+        self, mock_repo: MagicMock, client: TestClient
+    ) -> None:
+        """Test GET profile handles failure to create default profile."""
+        # Mock repo.get() to return None even after create_or_update is called
+        mock_repo.get.return_value = None
+        mock_repo.create_or_update.return_value = None
+
+        response = client.get("/user/profile?user_id=fail_user")
+        assert response.status_code == 500
+        assert "Failed to retrieve user profile" in response.json()["detail"]
+
+
 class TestAddEntry:
     """Tests for /add_entry endpoint."""
 
