@@ -24,9 +24,28 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
+          enable-cache: true
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ matrix.python-version }}-
 
       - name: Install dependencies
         run: uv sync
+
+      - name: Cache pytest
+        uses: actions/cache@v4
+        with:
+          path: .pytest_cache
+          key: pytest-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('tests/**/*.py') }}
+          restore-keys: |
+            pytest-${{ runner.os }}-${{ matrix.python-version }}-
 
       - name: Run pytest
         run: uv run pytest tests/ -v --cov=src/personal_health --cov-report=term-missing --cov-report=xml
@@ -40,14 +59,25 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
+          enable-cache: true
 
-    #   - name: Cache .mypy_cache
-    #     uses: actions/cache@v4
-    #     with:
-    #         path: .mypy_cache
-    #         key: mypy-${{ hashFiles('**/*.py', '.pre-commit-cache.yaml','pyproject.toml') }}
-    #         restore-keys: |
-    #             mypy-
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: uv-${{ runner.os }}-3.12-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-3.12-
+
+      - name: Cache .mypy_cache
+        uses: actions/cache@v4
+        with:
+            path: .mypy_cache
+            key: mypy-${{ hashFiles('**/*.py', '.pre-commit-config.yaml','pyproject.toml') }}
+            restore-keys: |
+                mypy-
 
       - name: Install dependencies
         run: uv sync
