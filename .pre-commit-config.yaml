@@ -53,12 +53,3 @@ repos:
       # NOTE: This hook uses `shellcheck` in GH Actions
       #       To mimic locally, `brew install shellcheck`
       - id: actionlint
-
-  # Use mypy to check types
-  # - repo: local
-  #   hooks:
-  #     - id: mypy
-  #       name: mypy
-  #       language: system
-  #       entry: uv run mypy
-  #       pass_filenames: false
