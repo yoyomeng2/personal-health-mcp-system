@@ -315,6 +315,4 @@ class TestUserProfileRepository:
         assert profile2 is not None
         # created_at should not change
         assert profile2["created_at"] == created_at
-        # updated_at should change (but this might be flaky due to timestamp precision)
-        # So we just verify it exists
         assert profile2["updated_at"] >= updated_at
