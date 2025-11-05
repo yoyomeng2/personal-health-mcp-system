@@ -21,7 +21,6 @@ from personal_health.config import Config
 from personal_health.db import Database
 from personal_health.exceptions import ModelError
 from personal_health.logging_config import get_logger, setup_logging
-from personal_health.ml import extract_meal_alcohol_features
 from personal_health.ml.features import (
     AlcoholFeature,
     LagFeature,
@@ -223,15 +222,14 @@ def _get_feature_names() -> list[str]:
     # Rolling statistics
     rolling_feature_names = [el.value.name for el in RollingStatFeature]
 
-    meal_alcohol_feature_names = (
+    # Binary features from DB (in consistent order)
+    binary_feature_names = (
         [el.value.name for el in AlcoholFeature]
         + [el.value.name for el in SubstanceFeature]
         + [el.value.name for el in MealFeature]
     )
 
-    return (
-        lag_features + temporal_feature_names + rolling_feature_names + meal_alcohol_feature_names
-    )
+    return lag_features + temporal_feature_names + rolling_feature_names + binary_feature_names
 
 
 def _log_feature_importance(feature_names: list[str], importances: np.ndarray) -> None:
@@ -358,13 +356,17 @@ def _extract_features_for_entry(
     # Day of week (0 = Monday, 6 = Sunday)
     day_of_week = float(entry_dt.weekday())
 
-    # Extract meal and alcohol features from most recent entry
+    # Extract binary features from most recent entry's DB columns
     most_recent_entry = prior_entries[0] if prior_entries else {}
-    meal_alcohol_features = extract_meal_alcohol_features(
-        most_recent_entry.get("meal"), most_recent_entry.get("alcohol")
+
+    # Binary features (using enums to maintain consistent order with _get_feature_names)
+    binary_features = (
+        [float(most_recent_entry.get(el.value.name) or 0) for el in AlcoholFeature]
+        + [float(most_recent_entry.get(el.value.name) or 0) for el in SubstanceFeature]
+        + [float(most_recent_entry.get(el.value.name) or 0) for el in MealFeature]
     )
 
-    # Combine features: 7 stress + 7 sleep + 7 pain + day_of_week + rolling stats + meal/alcohol
+    # Combine features: 7 stress + 7 sleep + 7 pain + day_of_week + rolling stats + binary features
     features = (
         stress_7d
         + sleep_7d
@@ -378,7 +380,7 @@ def _extract_features_for_entry(
             avg_pain,
             max_pain,
         ]
-        + meal_alcohol_features
+        + binary_features
     )
 
     return features, True
