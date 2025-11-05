@@ -10,8 +10,7 @@ from personal_health.config import Config
 from personal_health.db import Database
 from personal_health.exceptions import ModelError
 from personal_health.logging_config import get_logger
-from personal_health.ml import extract_meal_alcohol_features
-from personal_health.ml.features import LagFeature
+from personal_health.ml.features import AlcoholFeature, LagFeature, MealFeature, SubstanceFeature
 
 logger = get_logger(__name__)
 
@@ -206,19 +205,23 @@ class HealthPredictor:
         # Day of week (0 = Monday, 6 = Sunday)
         day_of_week = float(pred_dt.weekday())
 
-        # Extract meal and alcohol features from most recent entry
+        # Extract binary features from most recent entry's DB columns
         most_recent_entry = prior_entries[0] if prior_entries else {}
-        meal_alcohol_features = extract_meal_alcohol_features(
-            most_recent_entry.get("meal"), most_recent_entry.get("alcohol")
+
+        # Binary features (using enums to maintain consistent order with training script)
+        binary_features = (
+            [float(most_recent_entry.get(el.value.name) or 0) for el in AlcoholFeature]
+            + [float(most_recent_entry.get(el.value.name) or 0) for el in SubstanceFeature]
+            + [float(most_recent_entry.get(el.value.name) or 0) for el in MealFeature]
         )
 
-        # Combine features: 7 stress + 7 sleep + 7 pain + day_of_week + rolling stats + meal/alcohol
+        # Combine features: 7 stress + 7 sleep + 7 pain + day_of_week + rolling stats + binary features
         features = (
             stress_7d
             + sleep_7d
             + pain_7d
             + [day_of_week, avg_stress, max_stress, avg_sleep, min_sleep, avg_pain, max_pain]
-            + meal_alcohol_features
+            + binary_features
         )
 
         return features, "ok"

@@ -6,6 +6,7 @@ from openai import OpenAI
 
 from personal_health.db.schemas import EntrySchema
 from personal_health.logging_config import get_logger
+from personal_health.ml.features import AlcoholFeature, MealFeature, SubstanceFeature
 from personal_health.ml.providers.base import ExtractedFeatures, LLMProvider, UserProfile
 
 logger = get_logger(__name__)
@@ -77,12 +78,22 @@ class OpenAIProvider(LLMProvider):
             str: System prompt with user context and extraction rules.
         """
         user_context = f"""USER PROFILE:
-- Dietary Restrictions: {', '.join(user_profile.dietary_restrictions) if user_profile.dietary_restrictions else 'None'}
-- Allergies: {', '.join(user_profile.allergies) if user_profile.allergies else 'None'}
-- Preferences: {', '.join(user_profile.preferences) if user_profile.preferences else 'None'}
-- Habits: {', '.join(user_profile.habits) if user_profile.habits else 'None'}"""
+- Dietary Restrictions: {", ".join(user_profile.dietary_restrictions) if user_profile.dietary_restrictions else "None"}
+- Allergies: {", ".join(user_profile.allergies) if user_profile.allergies else "None"}
+- Preferences: {", ".join(user_profile.preferences) if user_profile.preferences else "None"}
+- Habits: {", ".join(user_profile.habits) if user_profile.habits else "None"}"""
 
-        # REFACTOR: the list of "FEATURES TO EXTRACT" needs to be dynamic; it should use the feature enum and that enum should contain the description too
+        # Build feature list from enums
+        features = (
+            [el.value for el in MealFeature]
+            + [el.value for el in AlcoholFeature]
+            + [el.value for el in SubstanceFeature]
+        )
+        feature_list = "\n".join(
+            f"{i + 1}. {feat.name} - {feat.description}" for i, feat in enumerate(features)
+        )
+        feature_count = len(features)
+
         return f"""You are a food feature extraction assistant. Extract binary features from meal descriptions using the user's known dietary profile.
 
 {user_context}
@@ -92,26 +103,8 @@ FEATURE EXTRACTION RULES:
 - Return 0 (false) if explicitly absent OR conflicts with known profile
 - Return null for ANY remaining ambiguity
 
-FEATURES TO EXTRACT (19 binary features):
-1. has_beans - Contains beans (black, pinto, kidney, etc.)
-2. has_rice - Contains rice
-3. has_pasta - Contains pasta/noodles
-4. has_tofu - Contains tofu
-5. has_nuts - Contains nuts (except peanuts)
-6. has_peanut - Contains peanuts/peanut butter
-7. is_gluten_free - Is gluten-free
-8. has_dairy - Contains dairy (milk, cheese, yogurt, butter)
-9. is_spicy - Is spicy
-10. is_fried - Is fried/deep-fried
-11. is_raw - Contains raw ingredients
-12. has_coffee - Contains coffee
-13. has_greens - Contains leafy greens
-14. has_corn - Contains corn
-15. has_alcohol - Contains alcohol
-16. is_beer - Is beer
-17. is_wine - Is wine
-18. is_multiple_drinks - Multiple alcoholic drinks
-19. has_thc - Contains THC/cannabis
+FEATURES TO EXTRACT ({feature_count} binary features):
+{feature_list}
 
 CONFIDENCE LEVELS:
 - "explicit": Directly stated or obvious from dish name
@@ -161,8 +154,13 @@ Be conservative: prefer null over guessing."""
 
         entry_text = "\n".join(parts) if parts else "No description provided"
 
+        # Calculate feature count dynamically
+        feature_count = (
+            len(list(MealFeature)) + len(list(AlcoholFeature)) + len(list(SubstanceFeature))
+        )
+
         return f"""Extract features from this entry:
 
 {entry_text}
 
-Return JSON with features, confidence, and reasoning for each of the 19 binary features."""
+Return JSON with features, confidence, and reasoning for each of the {feature_count} binary features."""
