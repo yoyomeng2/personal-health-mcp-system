@@ -57,7 +57,17 @@ def setup_logging(config_path: Path | str | None = None, level: str | None = Non
             },
             "loggers": {
                 # to avoid 3rd party debug logs
+                "httpcore": {
+                    "level": "INFO",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
                 "matplotlib.font_manager": {
+                    "level": "INFO",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "openai._base_client": {
                     "level": "INFO",
                     "handlers": ["console"],
                     "propagate": False,
