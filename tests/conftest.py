@@ -44,7 +44,7 @@ def repo(db: Database) -> UserProfileRepository:
 
 
 @pytest.fixture
-def client(db: Database) -> Generator[TestClient, None, None]:
+def client(db: Database, repo: UserProfileRepository) -> Generator[TestClient, None, None]:
     """Create a FastAPI test client with a temporary database.
 
     Uses FastAPI's dependency override to inject test database.
@@ -53,12 +53,9 @@ def client(db: Database) -> Generator[TestClient, None, None]:
 
     app = create_app()
 
-    # Create test user profile repository
-    test_repo = UserProfileRepository(db)
-
     # Override FastAPI dependencies to use test database
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_user_profile_repo] = lambda: test_repo
+    app.dependency_overrides[get_user_profile_repo] = lambda: repo
 
     # so that pydantic validation errors are returned as 422 Unprocessable Entity and don't kill pytest
     with TestClient(app, raise_server_exceptions=False) as test_client:
