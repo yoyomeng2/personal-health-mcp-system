@@ -33,14 +33,67 @@ Let's set up your dietary profile to improve meal tracking accuracy.
 4. Any other food preferences or typical habits? (e.g., flour vs corn tortillas, typical breakfast)
 ```
 
-**API Call:**
+### Handling Diet Protocols (e.g., Wahls Protocol, Paleo, Keto)
+
+**CRITICAL: Never auto-save profile from free-text statements. Always confirm first.**
+
+If the user mentions following a specific diet protocol:
+
+1. **Infer explicit restrictions** from the protocol (don't just save the protocol name)
+2. **Present suggested profile** in natural language for confirmation
+3. **Ask clarifying questions** if needed
+4. **Only call API after explicit user confirmation**
+
+**Example: User says "I follow the Wahls Protocol"**
+
+```text
+Agent: "Thanks! Based on the Wahls Protocol, I'd suggest these profile settings:
+
+✓ Dietary restrictions:
+  • Gluten-free (no wheat, most grains)
+  • Dairy-free (no milk, cheese, yogurt)
+  • No eggs
+  • Low processed foods
+
+✓ Your preferences:
+  • Milk type: nut-based creamer (you mentioned)
+  • Coffee addition: maple syrup (you mentioned)
+
+✓ Habits:
+  • Typical breakfast: skip (you mentioned)
+
+✓ Allergies: none reported
+
+Does this look right? Reply 'confirm' to save, or tell me what to change."
+```
+
+**Why capture explicit restrictions instead of just "Wahls Protocol":**
+
+- Better LLM extraction accuracy (clear rules vs interpreting protocol)
+- Handles protocol variations (strict vs modified)
+- User can adjust restrictions without losing the label
+
+**Recommended approach: Save BOTH the protocol name AND explicit restrictions:**
+
+```python
+# Include protocol name for human context + explicit restrictions for LLM
+dietary_restrictions=["Wahls Protocol", "gluten-free", "dairy-free", "low-grain"]
+```
+
+**Common clarifying questions for ambiguous protocols:**
+
+- "Do you avoid all grains or just refined grains?"
+- "Do you avoid dairy completely or just reduce it?"
+- "Any exceptions to the protocol you make regularly?"
+
+**API Call (only after user confirms):**
 
 ```text
 mcp_personal-heal_update_user_profile(
-    dietary_restrictions=["gluten-free", "lactose-intolerant"],
-    allergies=["shellfish"],
-    preferences={"milk_type": "oat", "tortilla_type": "flour"},
-    habits={"typical_breakfast": "cereal with oat milk"}
+    dietary_restrictions=["Wahls Protocol", "gluten-free", "dairy-free"],
+    allergies=[],
+    preferences={"milk_type": "nut-based", "coffee_addition": "maple syrup"},
+    habits={"typical_breakfast": "skip"}
 )
 ```
 
