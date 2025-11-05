@@ -239,10 +239,10 @@ curl localhost:8080/correlations
   1. ✅ Add GET/PUT /user/profile endpoints
   1. ✅ Extend entries table with 19 feature columns
   1. ✅ Update API to expose features and accept PATCH updates
-  1. Implement LLM extraction with user context injection
-  1. Implement batch confirmation UX in agent prompts
+  1. ✅ Implement LLM extraction with user context injection
+  1. ✅ Implement batch confirmation UX in agent prompts
   1. Add profile violation detection and clarifying questions
-  1. Refactor model training to read features from DB columns
+  1. Refactor model training and prediction to read features from DB columns
   1. Add correlation analysis endpoint
 
 - Estimate: 8–12 hours (user profile schema, onboarding, context-aware extraction, API updates, testing)

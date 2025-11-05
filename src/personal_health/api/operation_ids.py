@@ -29,6 +29,7 @@ class OperationId(Enum):
     ANALYZE_TRIGGERS = Operation("analyze_triggers", allow_mcp=True)
     GET_USER_PROFILE = Operation("get_user_profile", allow_mcp=True)
     UPDATE_USER_PROFILE = Operation("update_user_profile", allow_mcp=True)
+    GET_AGENT_UX_GUIDE = Operation("get_agent_ux_guide", allow_mcp=True)
     RESET_DATABASE = Operation("reset_database", allow_mcp=False)
 
     def __str__(self) -> str:

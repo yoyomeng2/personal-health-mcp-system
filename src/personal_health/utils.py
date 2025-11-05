@@ -2,10 +2,13 @@
 
 import hashlib
 import json
+from pathlib import Path
 
 from personal_health.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+AGENT_UX_GUIDE = Path(__file__).parent.parent.parent / "docs" / "agent-ux-guide.md"
 
 
 def generate_entry_id(values: list) -> str:
@@ -34,4 +37,13 @@ def parse_and_validate_entry(data: dict) -> dict:
         Validated entry data.
     """
     # Basic validation - extend as needed
-    return data
+    raise NotImplementedError
+
+
+def get_agent_ux_guide_content() -> str:
+    """Retrieve the agent UX guide content.
+
+    Returns:
+        str: Content of the agent UX guide.
+    """
+    return AGENT_UX_GUIDE.read_text(encoding="utf-8")

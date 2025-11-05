@@ -1,4 +1,5 @@
 """MCP routes - HTTP endpoints."""
+
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -26,7 +27,7 @@ from personal_health.logging_config import get_logger
 from personal_health.ml import HealthPredictor
 from personal_health.ml.feature_extraction import extract_features_from_meal
 from personal_health.ml.providers.base import UserProfile
-from personal_health.utils import generate_entry_id
+from personal_health.utils import generate_entry_id, get_agent_ux_guide_content
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -54,8 +55,51 @@ async def health_check() -> dict:
     return {"status": "healthy"}
 
 
+@router.get(
+    "/agent_ux_guide",
+    operation_id=OperationId.GET_AGENT_UX_GUIDE.operation_id,
+    response_model=dict,
+    tags=["agent-documentation"],
+)
+async def get_agent_ux_guide() -> dict:
+    """**IMPORTANT: Call this FIRST when helping users with health tracking.**
+
+    Get the agent UX guide that defines conversational patterns, workflows,
+    and best practices for creating health entries. This guide contains:
+    - Natural language interaction patterns
+    - Profile-aware inference rules
+    - Batch confirmation formats
+    - Feature extraction workflows
+    - Example dialogs
+
+    Always retrieve this guide at the start of a health tracking conversation
+    to ensure you follow the correct UX patterns.
+
+    Returns:
+        dict: Contains 'content' (markdown text) and 'version' fields.
+
+    Raises:
+        HTTPException: If guide file cannot be read.
+    """
+    try:
+        logger.info("Retrieving agent UX guide")
+
+        return {
+            "content": get_agent_ux_guide_content(),
+            "version": "0.1.0",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retrieve agent UX guide: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve agent UX guide") from e
+
+
 @router.post(
-    "/add_entry", operation_id=OperationId.ADD_ENTRY.operation_id, response_model=EntryResponse
+    "/add_entry",
+    operation_id=OperationId.ADD_ENTRY.operation_id,
+    response_model=EntryResponse,
+    tags=["entries"],
 )
 async def add_entry(entry: EntryCreate, db: DatabaseDep) -> EntryResponse:
     """Add a new health entry.
@@ -107,6 +151,7 @@ async def add_entry(entry: EntryCreate, db: DatabaseDep) -> EntryResponse:
     "/update_entry",
     operation_id=OperationId.UPDATE_ENTRY.operation_id,
     response_model=EntryResponse,
+    tags=["entries"],
 )
 async def update_entry(entry: EntryUpdate, db: DatabaseDep) -> EntryResponse:
     """Update an existing health entry.
@@ -164,6 +209,7 @@ async def update_entry(entry: EntryUpdate, db: DatabaseDep) -> EntryResponse:
     "/get_entries",
     response_model=EntriesResponse,
     operation_id=OperationId.GET_ENTRIES.operation_id,
+    tags=["entries"],
 )
 async def get_entries(
     db: DatabaseDep,
@@ -204,7 +250,10 @@ async def get_entries(
 
 
 @router.get(
-    "/get_entry/{entry_id}", operation_id=OperationId.GET_ENTRY.operation_id, response_model=Entry
+    "/get_entry/{entry_id}",
+    operation_id=OperationId.GET_ENTRY.operation_id,
+    response_model=Entry,
+    tags=["entries"],
 )
 async def get_entry(entry_id: str, db: DatabaseDep) -> Entry:
     """Get a single health entry by ID.
@@ -241,6 +290,7 @@ async def get_entry(entry_id: str, db: DatabaseDep) -> Entry:
     "/entries/{entry_id}/extract_features",
     operation_id=OperationId.EXTRACT_FEATURES.operation_id,
     response_model=ExtractionResponse,
+    tags=["entries"],
 )
 async def extract_features(
     db: DatabaseDep,
@@ -324,7 +374,11 @@ async def extract_features(
         raise HTTPException(status_code=500, detail=f"Feature extraction failed: {e!s}") from e
 
 
-@router.post("/reset_database", operation_id=OperationId.RESET_DATABASE.operation_id)
+@router.post(
+    "/reset_database",
+    operation_id=OperationId.RESET_DATABASE.operation_id,
+    tags=["admin"],
+)
 async def reset_database(db: DatabaseDep) -> dict:
     """Reset the database by deleting all entries.
 
@@ -348,6 +402,7 @@ async def reset_database(db: DatabaseDep) -> dict:
     "/summarize_recent",
     operation_id=OperationId.GET_SUMMARY.operation_id,
     response_model=SummaryResponse,
+    tags=["analysis"],
 )
 async def summarize_recent(db: DatabaseDep, window_days: int = 7) -> SummaryResponse:
     """Get summary of recent health data.
@@ -406,6 +461,7 @@ _predict_next_day_predictor_dep = Depends(_get_predictor)
     "/predict_next_day",
     operation_id=OperationId.GET_PREDICTION.operation_id,
     response_model=PredictionResponse,
+    tags=["analysis"],
 )
 async def predict_next_day(
     db: DatabaseDep, date: str, predictor: HealthPredictor = _predict_next_day_predictor_dep
@@ -461,6 +517,7 @@ async def predict_next_day(
     "/analyze_pain_triggers",
     operation_id=OperationId.ANALYZE_TRIGGERS.operation_id,
     response_model=CorrelationResponse,
+    tags=["analysis"],
 )
 async def analyze_pain_triggers() -> dict:
     """Analyze potential pain triggers from entries.

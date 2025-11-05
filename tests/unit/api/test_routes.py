@@ -4,6 +4,7 @@ These are TRUE unit tests that mock external dependencies.
 For integration tests that use real database operations, see tests/integration/api/test_routes.py
 """
 
+import asyncio
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -78,3 +79,19 @@ class TestExtractFeatures:
         response = client.post("/entries/nonexistent-id/extract_features")
         assert response.status_code == 404
         assert "Entry not found" in response.json()["detail"]
+
+
+class TestAgentUXGuide:
+    """Unit tests for agent UX guide endpoint."""
+
+    @patch("personal_health.api.routes.get_agent_ux_guide_content")
+    def test_get_agent_ux_guide_calls_utils(self, mock_get_content: MagicMock) -> None:
+        """Test that endpoint calls get_agent_ux_guide_content from utils."""
+        mock_get_content.return_value = "# Agent UX Guide\n\nMocked content"
+
+        # Import and call the endpoint function
+        from personal_health.api.routes import get_agent_ux_guide
+
+        asyncio.run(get_agent_ux_guide())
+
+        mock_get_content.assert_called_once()

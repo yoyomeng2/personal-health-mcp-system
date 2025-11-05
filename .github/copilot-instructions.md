@@ -183,5 +183,6 @@ If there is any uncertainty about whether to prompt, always err on the side of a
 
 ## PERSONAL HEALTH PROJECT
 
-- When querying or manipulating health data, always use the Personal Health MCP tools (mcp_personal-heal_*) instead of direct database queries
-- These tools interact with the running FastAPI server and provide the actual application API
+- When querying or manipulating health data, always use the Personal Health MCP tools (mcp_personal-healh_*) instead of direct database queries
+- These tools interact with a running FastAPI server and provide the actual application API response
+- For conversational patterns and UX workflows when helping users create health entries, see `docs/agent-ux-guide.md`

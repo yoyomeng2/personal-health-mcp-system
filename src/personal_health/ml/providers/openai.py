@@ -66,6 +66,7 @@ class OpenAIProvider(LLMProvider):
             reasoning=extracted.get("reasoning", {}),
         )
 
+    # REFACTOR: this should be in the base class since OllamaProvider will need it too
     def _build_system_prompt(self, user_profile: UserProfile) -> str:
         """Build system prompt with user profile context.
 
@@ -81,6 +82,7 @@ class OpenAIProvider(LLMProvider):
 - Preferences: {', '.join(user_profile.preferences) if user_profile.preferences else 'None'}
 - Habits: {', '.join(user_profile.habits) if user_profile.habits else 'None'}"""
 
+        # REFACTOR: the list of "FEATURES TO EXTRACT" needs to be dynamic; it should use the feature enum and that enum should contain the description too
         return f"""You are a food feature extraction assistant. Extract binary features from meal descriptions using the user's known dietary profile.
 
 {user_context}

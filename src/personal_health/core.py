@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
     )
 
     # Include routers (database is initialized in routes module)
-    app.include_router(api_router, tags=["health"])
+    app.include_router(api_router)
 
     # And then mount it
     include_operations_mcp = FastApiMCP(
@@ -50,6 +50,7 @@ def create_app() -> FastAPI:
     include_operations_mcp.mount_http()
 
     logger.info("Application initialized")
+    logger.info(f"MCP operations mounted: {get_mcp_operations()}")
     return app
 
 
