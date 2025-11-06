@@ -55,9 +55,11 @@ Enable a local or agent-based system to:
 ```text
 ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
 │ User Input   │──────▶│ MCP Server   │──────▶│ SQLite / ML  │
-│ (Form/CLI)   │       │ (FastAPI)    │       │ Engine       │
+│ (Agent)   │       │ (FastAPI)    │       │ Engine       │
 └──────────────┘       └──────────────┘       └──────────────┘
 ```
+
+See [docs/architecture.md](docs/architecture.md) for detailed architecture diagrams and component descriptions.
 
 ---
 

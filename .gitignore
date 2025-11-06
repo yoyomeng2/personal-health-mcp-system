@@ -135,6 +135,7 @@ dmypy.json
 # Runtime and other data
 data/
 *.csv
+*.pem
 
 # Environment files
 .env
