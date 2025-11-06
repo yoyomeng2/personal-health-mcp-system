@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from personal_health.api.analysis import compute_summary
 from personal_health.api.dependencies import DatabaseDep, UserProfileRepoDep
@@ -31,6 +31,42 @@ from personal_health.utils import generate_entry_id, get_agent_ux_guide_content
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+def verify_test_token(
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> str:
+    """Simple test token verification via X-API-Key header - replace with real auth later."""
+    if x_api_key != "letmein":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing API key",
+        )
+    return x_api_key
+
+
+def verify_claude_token(
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> str:
+    """Verify Claude MCP access token via X-API-Key header."""
+    if x_api_key != "claude-secret":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid Claude API key",
+        )
+    return x_api_key
+
+
+def verify_chatgpt_token(
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> str:
+    """Verify ChatGPT MCP access token via X-API-Key header."""
+    if x_api_key != "chatgpt-secret":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid ChatGPT API key",
+        )
+    return x_api_key
 
 
 @router.get("/", tags=["health"])
@@ -210,6 +246,7 @@ async def update_entry(entry: EntryUpdate, db: DatabaseDep) -> EntryResponse:
     response_model=EntriesResponse,
     operation_id=OperationId.GET_ENTRIES.operation_id,
     tags=["entries"],
+    dependencies=[Depends(verify_test_token)],
 )
 async def get_entries(
     db: DatabaseDep,
