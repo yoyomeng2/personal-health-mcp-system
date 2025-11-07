@@ -1,5 +1,6 @@
 """FastAPI dependency injection for shared resources."""
 
+import os
 import secrets
 from typing import Annotated
 
@@ -11,7 +12,8 @@ from personal_health.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-AUTH_SECRET = "AUTH_SECRET"
+AUTH_SECRET_KEY = "AUTH_SECRET"
+AUTH_SECRET = os.getenv(AUTH_SECRET_KEY, "").strip()
 
 # Global instances (initialized once by init_dependencies)
 _db: Database | None = None
