@@ -1,9 +1,10 @@
 """Core functionality and FastAPI application."""
 
 from fastapi import FastAPI
-from fastapi_mcp import FastApiMCP
+from fastapi.params import Depends
+from fastapi_mcp import AuthConfig, FastApiMCP
 
-from personal_health.api.dependencies import init_dependencies
+from personal_health.api.dependencies import init_dependencies, simple_authentication
 from personal_health.api.operation_ids import get_mcp_operations
 from personal_health.api.routes import router as api_router
 from personal_health.config import Config
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
         name="personal-health-mcp",
         description=description,
         include_operations=get_mcp_operations(),
+        auth_config=AuthConfig(dependencies=[Depends(simple_authentication)]),
     )
     include_operations_mcp.mount_http()
 

@@ -1,13 +1,17 @@
 """FastAPI dependency injection for shared resources."""
 
+import secrets
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Header, HTTPException, status
 
 from personal_health.db import Database, UserProfileRepository
 from personal_health.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+AUTH_SECRET = "AUTH_SECRET"
 
 # Global instances (initialized once by init_dependencies)
 _db: Database | None = None
@@ -59,6 +63,43 @@ def get_user_profile_repo() -> UserProfileRepository:
     if _user_profile_repo is None:
         raise RuntimeError("UserProfileRepository not initialized. Call init_dependencies() first.")
     return _user_profile_repo
+
+
+def simple_authentication(x_api_key: str = Header(None, alias="X-API-Key")) -> str:
+    """A simple authentication dependency to inspect a secret in request headers.
+
+    Args:
+        x_api_key (str): API key from X-API-Key header.
+
+    Returns:
+        str: The validated API key.
+
+    Raises:
+        HTTPException: 403 if authentication fails.
+    """
+    if not AUTH_SECRET:
+        logger.error("AUTH_SECRET not configured - authentication disabled")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication not configured",
+        )
+
+    if not x_api_key:
+        logger.warning("Missing X-API-Key header")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing API key",
+        )
+
+    if not secrets.compare_digest(x_api_key, AUTH_SECRET):
+        logger.warning("Failed authentication attempt")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key",
+        )
+
+    logger.debug("Successful authentication with X-API-Key")
+    return x_api_key
 
 
 # Type aliases for dependency injection
