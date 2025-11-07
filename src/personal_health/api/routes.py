@@ -1,9 +1,17 @@
 """MCP routes - HTTP endpoints."""
 
+import base64
 import json
+from collections.abc import Callable
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
+from fastapi.responses import HTMLResponse
+from fastapi.security.utils import get_authorization_scheme_param
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
 
+from personal_health.api import oauth
 from personal_health.api.analysis import compute_summary
 from personal_health.api.dependencies import DatabaseDep, UserProfileRepoDep
 from personal_health.api.operation_ids import OperationId
@@ -33,6 +41,16 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+class LoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next: Callable) -> Any:
+        body = await request.body()
+        logger.debug(
+            f"[MIDDLEWARE] {request.method} {request.url.path} headers={dict(request.headers)} body={body[:500]!r}"
+        )
+        response = await call_next(request)
+        return response
+
+
 @router.get("/", tags=["health"])
 async def root() -> dict:
     """Root endpoint.
@@ -53,6 +71,252 @@ async def health_check() -> dict:
     """
     logger.debug("health_check endpoint called")
     return {"status": "healthy"}
+
+
+# OAuth2 Discovery Endpoints
+@router.get("/.well-known/oauth-authorization-server", tags=["oauth"])
+async def oauth_authorization_server_metadata(request: Request) -> dict:
+    """OAuth2 Authorization Server Metadata (RFC 8514).
+
+    ChatGPT uses this to discover OAuth endpoints.
+
+    Returns:
+        OAuth2 server metadata.
+    """
+    base_url = str(request.base_url).rstrip("/")
+    logger.info(f"OAuth metadata requested, base_url: {base_url}")
+    return oauth.get_oauth_metadata(base_url)
+
+
+@router.get("/.well-known/oauth-protected-resource", tags=["oauth"])
+async def oauth_protected_resource_metadata(request: Request) -> dict:
+    """OAuth2 Protected Resource Metadata.
+
+    Indicates this resource requires OAuth2 Bearer tokens.
+
+    Returns:
+        OAuth2 protected resource metadata.
+    """
+    base_url = str(request.base_url).rstrip("/")
+    logger.info(f"OAuth protected resource metadata requested, base_url: {base_url}")
+    return oauth.get_protected_resource_metadata(base_url)
+
+
+@router.get("/.well-known/openid-configuration", tags=["oauth"])
+async def openid_configuration(request: Request) -> dict:
+    """OpenID Connect Discovery (alternative to OAuth2 metadata).
+
+    Returns:
+        OpenID Connect configuration.
+    """
+    base_url = str(request.base_url).rstrip("/")
+    logger.info(f"OpenID configuration requested, base_url: {base_url}")
+    return oauth.get_oauth_metadata(base_url)
+
+
+# OAuth2 Flow Endpoints
+@router.get("/oauth/authorize", tags=["oauth"], response_class=HTMLResponse)
+async def oauth_authorize(
+    client_id: str = Query(...),
+    redirect_uri: str = Query(...),
+    response_type: str = Query("code"),
+    scope: str = Query(""),
+    state: str = Query(None),
+) -> HTMLResponse:
+    """OAuth2 authorization endpoint.
+
+    In production, this would show a consent screen. For now, auto-approve.
+
+    Args:
+        client_id (str): OAuth2 client ID.
+        redirect_uri (str): Redirect URI.
+        response_type (str): Must be 'code'.
+        scope (str): Requested scope.
+        state (str, optional): CSRF protection state.
+
+    Returns:
+        HTML response with auto-redirect to redirect_uri with code.
+    """
+    logger.info(f"Authorization request from client: {client_id}")
+
+    if response_type != "code":
+        raise HTTPException(status_code=400, detail="Only 'code' response_type supported")
+
+    # Generate authorization code
+    code = oauth.create_authorization_code(client_id, redirect_uri, scope)
+
+    # Build redirect URL
+    redirect_params = f"code={code}"
+    if state:
+        redirect_params += f"&state={state}"
+
+    final_redirect = f"{redirect_uri}?{redirect_params}"
+
+    # Auto-approve with redirect (in production, show consent form)
+    html_content = f"""
+    <html>
+        <head>
+            <title>Authorization</title>
+            <meta http-equiv="refresh" content="0;url={final_redirect}">
+        </head>
+        <body>
+            <p>Redirecting to {redirect_uri}...</p>
+            <p>If not redirected, <a href="{final_redirect}">click here</a>.</p>
+        </body>
+    </html>
+    """
+
+    return HTMLResponse(content=html_content)
+
+
+@router.post("/oauth/token", tags=["oauth"])
+async def oauth_token(
+    grant_type: str = Form(...),
+    code: str = Form(None),
+    redirect_uri: str = Form(None),
+    client_id: str = Form(None),
+    client_secret: str = Form(None),
+    request: Request = None,
+) -> dict:
+    """OAuth2 token endpoint.
+
+    Exchange authorization code for access token.
+
+    Args:
+        grant_type (str): Must be 'authorization_code' or 'client_credentials'.
+        code (str): Authorization code (for authorization_code grant).
+        redirect_uri (str): Redirect URI (for authorization_code grant).
+        client_id (str): OAuth2 client ID.
+        client_secret (str): OAuth2 client secret.
+
+    Returns:
+        Token response with access_token.
+    """
+
+    # Extract client credentials from HTTP Basic Auth if present
+    auth_header = request.headers.get("authorization") if request else None
+    basic_client_id = basic_client_secret = None
+    if auth_header:
+        scheme, credentials = get_authorization_scheme_param(auth_header)
+        if scheme.lower() == "basic" and credentials:
+            try:
+                decoded = base64.b64decode(credentials).decode()
+                basic_client_id, basic_client_secret = decoded.split(":", 1)
+            except Exception as e:
+                logger.warning(f"Failed to decode HTTP Basic Auth: {e}")
+
+    # Prefer HTTP Basic Auth, fallback to form fields
+    effective_client_id = basic_client_id or client_id
+    effective_client_secret = basic_client_secret or client_secret
+
+    logger.info(f"Token request from client: {effective_client_id}, grant_type: {grant_type}")
+    logger.debug(
+        f"/oauth/token: grant_type={grant_type}, code={code}, redirect_uri={redirect_uri}, client_id={effective_client_id}, client_secret={'***' if effective_client_secret else None}"
+    )
+
+    # Validate client credentials
+    if not effective_client_id or not effective_client_secret:
+        logger.warning(
+            "/oauth/token: Missing client_id or client_secret (neither form nor HTTP Basic Auth provided)"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing client credentials"
+        )
+    if not oauth.validate_client_credentials(effective_client_id, effective_client_secret):
+        logger.warning(
+            f"/oauth/token: Invalid client credentials for client_id={effective_client_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid client credentials"
+        )
+
+    if grant_type == "authorization_code":
+        if not code or not redirect_uri:
+            logger.warning(
+                f"/oauth/token: Missing code or redirect_uri for authorization_code grant. code={code}, redirect_uri={redirect_uri}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="code and redirect_uri required for authorization_code grant",
+            )
+
+        # Validate authorization code
+        is_valid, scope = oauth.validate_authorization_code(code, effective_client_id, redirect_uri)
+        if not is_valid:
+            logger.warning(
+                f"/oauth/token: Invalid authorization code. {code=}, client_id={effective_client_id}, {redirect_uri=}"
+            )
+            raise HTTPException(status_code=400, detail="Invalid authorization code")
+
+        # Create access token
+        access_token = oauth.create_access_token(effective_client_id, scope or "")
+
+        return {
+            "access_token": access_token,
+            "token_type": "Bearer",
+            "expires_in": oauth.OAUTH_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "scope": scope or "",
+        }
+
+    elif grant_type == "client_credentials":
+        # Direct token for client credentials flow
+        access_token = oauth.create_access_token(effective_client_id, "")
+
+        return {
+            "access_token": access_token,
+            "token_type": "Bearer",
+            "expires_in": oauth.OAUTH_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        }
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported grant_type: {grant_type}")
+
+
+@router.post("/oauth/register", tags=["oauth"])
+async def oauth_register(request: Request) -> dict:
+    """OAuth2 Dynamic Client Registration (RFC 7591).
+
+    Allows clients to register themselves and obtain client credentials.
+
+    Request body (JSON):
+        {
+            "client_name": "My Client App",
+            "redirect_uris": ["https://example.com/callback"],
+            "grant_types": ["authorization_code"]
+        }
+
+    Returns:
+        Client registration response with client_id and client_secret.
+    """
+    # Simple protection: limit total number of registered clients
+    if len(oauth._registered_clients) >= 5:
+        logger.warning(
+            f"Registration limit reached. Client IP: {request.client.host if request.client else 'unknown'}"
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Maximum number of clients registered. Contact administrator.",
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    client_name = body.get("client_name", "unknown")
+    redirect_uris = body.get("redirect_uris", [])
+    grant_types = body.get("grant_types", ["authorization_code"])
+
+    logger.info(
+        f"Dynamic client registration request: {client_name} from {request.client.host if request.client else 'unknown'}"
+    )
+
+    # Register the client
+    registration = oauth.register_client(
+        client_name=client_name, redirect_uris=redirect_uris, grant_types=grant_types
+    )
+
+    return registration
 
 
 @router.get(

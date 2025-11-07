@@ -4,8 +4,9 @@ import os
 import secrets
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 
+from personal_health.api import oauth
 from personal_health.db import Database, UserProfileRepository
 from personal_health.logging_config import get_logger
 
@@ -102,6 +103,64 @@ def simple_authentication(x_api_key: str = Header(None, alias="X-API-Key")) -> s
 
     logger.debug("Successful authentication with X-API-Key")
     return x_api_key
+
+
+def oauth_bearer_authentication(request: Request, authorization: str = Header(None)) -> str:
+    """OAuth2 Bearer token authentication dependency.
+
+    - HTTP requests (localhost): No authentication required
+    - HTTPS requests: Requires OAuth Bearer token
+
+    Args:
+        request (Request): FastAPI request object.
+        authorization (str): Authorization header value (e.g., "Bearer <token>").
+
+    Returns:
+        str: The client_id from the validated token, or empty string for HTTP.
+
+    Raises:
+        HTTPException: 401 if token is missing, invalid, or expired on HTTPS.
+    """
+    # Skip authentication for HTTP (local development)
+    if request.url.scheme == "http":
+        logger.debug("HTTP request - skipping authentication")
+        return ""
+
+    # HTTPS - require OAuth Bearer token
+    logger.debug("HTTPS request - OAuth authentication required")
+
+    if not authorization:
+        logger.warning("Missing Authorization header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authorization",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Extract Bearer token
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        logger.warning(f"Invalid Authorization header format: {authorization}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization format",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = parts[1]
+
+    # Validate token
+    is_valid, client_id = oauth.validate_access_token(token)
+    if not is_valid or not client_id:
+        logger.warning("Invalid or expired Bearer token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    logger.debug(f"Successful OAuth authentication for client: {client_id}")
+    return client_id
 
 
 # Type aliases for dependency injection

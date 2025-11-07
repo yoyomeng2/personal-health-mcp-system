@@ -33,17 +33,17 @@ repos:
     hooks:
       - id: ruff
         args:
-         - --fix
-         - --config=pyproject.toml
+          - --fix
+          - --config=pyproject.toml
       - id: ruff-format
         args:
-         - --config=pyproject.toml
+          - --config=pyproject.toml
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.5.1
     hooks:
       - id: mypy
-        args: ["--ignore-missing-imports"]
+        args: ["--config-file", "pyproject.toml", "--ignore-missing-imports"]
         additional_dependencies: ["pydantic", "types-PyYAML"]
         exclude: ^(tests/|scripts/)
 

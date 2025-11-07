@@ -72,6 +72,11 @@ def setup_logging(config_path: Path | str | None = None, level: str | None = Non
                     "handlers": ["console"],
                     "propagate": False,
                 },
+                "python_multipart.multipart": {
+                    "level": "INFO",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
                 "sse_starlette.sse": {
                     "level": "INFO",
                     "handlers": ["console"],
