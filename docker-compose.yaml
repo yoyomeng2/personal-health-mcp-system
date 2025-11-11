@@ -6,39 +6,25 @@ services:
       - "8080:8080"
       - "8443:8443"
     volumes:
-      # Persist database
       - ./data:/app/data
-      # Persist models
-      - ./models:/app/models
-      # Persist logs
       - ./logs:/app/logs
-      # Persist SSL certs
       - ./certs:/app/certs
-      # Mount configs
       - ./configs:/app/configs
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ENVIRONMENT=prod
     restart: unless-stopped
-    command: >
-      sh -c "
-      uv run python scripts/init_db.py &&
-      uv run uvicorn personal_health.core:app
-      --host 0.0.0.0
-      --port 8080
-      "
+    command: "scripts/shell/run_http.sh"
     profiles:
       - http
 
   # Optional: HTTPS variant
   personal-health-mcp-https:
     build: .
-    container_name: personal-health-mcp-https
+    container_name: personal-health-mcp
     ports:
       - "8443:8443"
     volumes:
       - ./data:/app/data
-      - ./models:/app/models
       - ./logs:/app/logs
       - ./certs:/app/certs
       - ./configs:/app/configs
@@ -46,14 +32,6 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ENVIRONMENT=prod
     restart: unless-stopped
-    command: >
-      sh -c "
-      uv run python scripts/init_db.py &&
-      uv run uvicorn personal_health.core:app
-      --host 0.0.0.0
-      --port 8443
-      --ssl-keyfile /app/certs/key.pem
-      --ssl-certfile /app/certs/cert.pem
-      "
+    command: "scripts/shell/run_https.sh"
     profiles:
       - https

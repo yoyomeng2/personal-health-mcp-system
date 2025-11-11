@@ -55,7 +55,7 @@ Enable a local or agent-based system to:
 ```text
 ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
 │ User Input   │──────▶│ MCP Server   │──────▶│ SQLite / ML  │
-│ (Agent)   │       │ (FastAPI)    │       │ Engine       │
+│ (Agent)      │       │ (FastAPI)    │       │ Engine       │
 └──────────────┘       └──────────────┘       └──────────────┘
 ```
 

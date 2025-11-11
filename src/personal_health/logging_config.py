@@ -9,7 +9,7 @@ import logging
 import logging.config
 from pathlib import Path
 
-import yaml
+from personal_health.config import Config
 
 
 def setup_logging(config_path: Path | str | None = None, level: str | None = None) -> None:
@@ -28,18 +28,18 @@ def setup_logging(config_path: Path | str | None = None, level: str | None = Non
         config_path = Path(config_path)
 
     try:
-        with open(config_path) as f:
-            config_dict = yaml.safe_load(f)
+        config = Config()
 
-        # Use override level if provided, otherwise use config file level
-        log_level = level or config_dict.get("logging", {}).get("level", "INFO")
+        log_level = level or config.get("logging.level", "INFO")
+
+        # log_level = level or config_dict.get("logging", {}).get("level", "INFO")
 
         log_config: dict = {
             "version": 1,
             "disable_existing_loggers": False,
             "formatters": {
                 "standard": {
-                    "format": config_dict.get("logging", {}).get(
+                    "format": config.get("logging", {}).get(
                         "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
                     ),
                 },
@@ -87,7 +87,7 @@ def setup_logging(config_path: Path | str | None = None, level: str | None = Non
 
         # Add file handler if log file is specified
         # Has been helpful for looking back at old logs
-        log_file = config_dict.get("logging", {}).get("file")
+        log_file = config.get("logging", {}).get("file")
         if log_file:
             log_path = Path(log_file)
             log_path.parent.mkdir(parents=True, exist_ok=True)

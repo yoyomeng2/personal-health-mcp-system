@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, sta
 from fastapi.responses import HTMLResponse
 from fastapi.security.utils import get_authorization_scheme_param
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request as StarletteRequest
 
 from personal_health.api import oauth
 from personal_health.api.analysis import compute_summary
@@ -42,7 +41,7 @@ router = APIRouter()
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: StarletteRequest, call_next: Callable) -> Any:
+    async def dispatch(self, request: Request, call_next: Callable) -> Any:
         body = await request.body()
         logger.debug(
             f"[MIDDLEWARE] {request.method} {request.url.path} headers={dict(request.headers)} body={body[:500]!r}"
@@ -58,7 +57,6 @@ async def root() -> dict:
     Returns:
         Service status.
     """
-    logger.debug("root endpoint called")
     return {"status": "ok", "service": "personal-health-mcp", "version": "0.1.0"}
 
 
@@ -69,7 +67,6 @@ async def health_check() -> dict:
     Returns:
         Health status.
     """
-    logger.debug("health_check endpoint called")
     return {"status": "healthy"}
 
 
@@ -171,18 +168,19 @@ async def oauth_authorize(
 
 @router.post("/oauth/token", tags=["oauth"])
 async def oauth_token(
+    request: Request,
     grant_type: str = Form(...),
     code: str = Form(None),
     redirect_uri: str = Form(None),
     client_id: str = Form(None),
     client_secret: str = Form(None),
-    request: Request = None,
 ) -> dict:
     """OAuth2 token endpoint.
 
     Exchange authorization code for access token.
 
     Args:
+        request (Request): The incoming HTTP request.
         grant_type (str): Must be 'authorization_code' or 'client_credentials'.
         code (str): Authorization code (for authorization_code grant).
         redirect_uri (str): Redirect URI (for authorization_code grant).
@@ -210,9 +208,6 @@ async def oauth_token(
     effective_client_secret = basic_client_secret or client_secret
 
     logger.info(f"Token request from client: {effective_client_id}, grant_type: {grant_type}")
-    logger.debug(
-        f"/oauth/token: grant_type={grant_type}, code={code}, redirect_uri={redirect_uri}, client_id={effective_client_id}, client_secret={'***' if effective_client_secret else None}"
-    )
 
     # Validate client credentials
     if not effective_client_id or not effective_client_secret:
@@ -393,8 +388,6 @@ async def add_entry(entry: EntryCreate, db: DatabaseDep) -> EntryResponse:
         # Generate deterministic ID from composite key fields
         entry_id = generate_entry_id(entries)
 
-        logger.debug(f"insert_entry params: {entry.model_dump()}")
-
         # Attempt to insert with explicit ID
         try:
             db.execute(
@@ -432,7 +425,6 @@ async def update_entry(entry: EntryUpdate, db: DatabaseDep) -> EntryResponse:
         HTTPException: If entry not found, update fails, or results in duplicate.
     """
     try:
-        logger.debug(f"update_entry params: {entry.model_dump()}")
         # First, verify entry exists
         existing = db.execute("SELECT * FROM entries WHERE id = ?", (entry.id,))
         if not existing:
@@ -509,7 +501,6 @@ async def get_entries(
         rows = cursor.execute(query, tuple(query_params)).fetchall()
 
         entries = [Entry.model_validate(dict(r)) for r in rows]
-        logger.debug(f"get_entries {len(entries)=}")
         return EntriesResponse(count=len(entries), entries=entries)
 
 
@@ -682,7 +673,6 @@ async def summarize_recent(db: DatabaseDep, window_days: int = 7) -> SummaryResp
         HTTPException: If summary fails.
     """
     try:
-        logger.debug(f"summarize_recent params: {window_days=}")
         logger.info(f"Computing summary for {window_days} days")
         # Fetch all entries (summary will filter by date)
         rows = db.execute(
@@ -702,7 +692,6 @@ async def summarize_recent(db: DatabaseDep, window_days: int = 7) -> SummaryResp
             }
             for r in rows
         ]
-        logger.debug(f"summarize_recent {len(entries)=}")
         # Compute summary using analysis module
         summary = compute_summary(entries, window_days=window_days)
         return SummaryResponse(window_days=window_days, summary=summary)

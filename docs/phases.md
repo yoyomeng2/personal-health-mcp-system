@@ -9,10 +9,8 @@ This file lists the remaining phases for the Personal Health MCP System, accepta
   - [Phase 5 — Improvements to Summary \& Analysis ✅](#phase-5--improvements-to-summary--analysis-)
   - [Phase 6 — Model training \& prediction pipeline ✅](#phase-6--model-training--prediction-pipeline-)
   - [Phase 7 - Ingredient Feature Storage \& Hybrid Extraction](#phase-7---ingredient-feature-storage--hybrid-extraction)
-  - [Phase 8 — Security, auth, and operational hygiene](#phase-8--security-auth-and-operational-hygiene)
-  - [Phase 9 — CI/CD, packaging \& release](#phase-9--cicd-packaging--release)
-  - [Phase 10 — Documentation \& Agent contract](#phase-10--documentation--agent-contract)
-  - [Phase 11 — Polish, telemetry, and roadmap items](#phase-11--polish-telemetry-and-roadmap-items)
+  - [Phase 8 — Security, auth, and operational hygiene ✅](#phase-8--security-auth-and-operational-hygiene-)
+  - [Phase 9 — Polish, telemetry, and roadmap items](#phase-9--polish-telemetry-and-roadmap-items)
   - [How to use this file](#how-to-use-this-file)
 
 ## Completed so far
@@ -329,14 +327,16 @@ uv run train-model --db data/health.db
 
 ---
 
-## Phase 8 — Security, auth, and operational hygiene
+## Phase 8 — Security, auth, and operational hygiene ✅
 
 - Goal: Protect write operations and add operational controls.
 
 - Acceptance criteria:
 
   - Implement API key or token-based auth for MCP write operations.
+    - ✅ OAuth2 added for HTTPS.
   - Add proper logging for security events, and ensure no secrets are logged.
+    - ✅ Logging middleware added to assist debugging.
 
 - Files to edit:
 
@@ -348,45 +348,7 @@ uv run train-model --db data/health.db
 
 ---
 
-## Phase 9 — CI/CD, packaging & release
-
-- Goal: Prepare build, test, and publishing workflows.
-
-- Acceptance criteria:
-
-  - CI runs tests, linters, and packaging steps.
-  - `pyproject.toml` is finalized and package builds cleanly with hatchling (or chosen backend).
-  - Releases can be produced from tags and optionally uploaded to an artifact store.
-
-- Files to add/edit:
-
-  - `.github/workflows/release.yaml`
-  - `pyproject.toml` (finalize metadata)
-
-- Estimate: 2–6 hours (depends on automation detail)
-
----
-
-## Phase 10 — Documentation & Agent contract
-
-- Goal: Produce clear docs for human contributors and machine-readable contract for agents.
-
-- Acceptance criteria:
-
-  - OpenAPI/Swagger docs auto-generated at `/docs` endpoint for agent consumption
-  - `.github/copilot-instructions.md` updated with operational rules and agent examples
-  - README has quickstart, MCP integration, and troubleshooting sections
-
-- Files updated:
-
-  - `README.md` (MCP integration section, idempotency behavior)
-  - `.github/copilot-instructions.md` (already exists with project guidelines)
-
-- Estimate: 2–4 hours
-
----
-
-## Phase 11 — Polish, telemetry, and roadmap items
+## Phase 9 — Polish, telemetry, and roadmap items
 
 - Goal: Final polish: telemetry/metrics, performance checks, and a roadmap for future features.
 
@@ -403,9 +365,7 @@ uv run train-model --db data/health.db
 ## How to use this file
 
 - Treat phases as checkpoints; complete one phase fully before moving to the next to keep scope small.
-- Open a new git branch per phase and create a PR with tests and CI passing.
-- If you want, tell me which phase to implement next and I will implement it and run quick checks locally.
 
 ---
 
-Last updated: 2025-10-24
+Last updated: 2025-11-10

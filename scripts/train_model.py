@@ -72,24 +72,7 @@ def train_pain_prediction_model(
         entries = [dict(row) for row in rows]
         logger.info(f"Loaded {len(entries)} entries from database")
 
-        # Extract features and targets
-        x = []
-        y = []
-
-        for i, entry in enumerate(entries):
-            # Get the next day's pain level as target
-            if i + 1 >= len(entries):
-                continue  # Skip last entry (no next day target)
-
-            entry_date = entry["date"]
-            target_entry = entries[i + 1]
-
-            # Extract features from prior 7 days
-            features, has_data = _extract_features_for_entry(entry_date, entries)
-
-            if features and has_data and target_entry.get(LagFeature.PAIN_LEVEL.value) is not None:
-                x.append(features)
-                y.append(float(target_entry[LagFeature.PAIN_LEVEL.value]))
+        x, y = _extract_features_and_targets(entries)
 
         if len(x) < 10:
             raise ModelError(f"Insufficient training data: {len(x)} samples, need at least 10")
@@ -104,40 +87,11 @@ def train_pain_prediction_model(
         y_test = y[split_idx:]
 
         logger.info(f"Training on {len(x_train)} samples, testing on {len(x_test)} samples")
-
-        # Train Random Forest model
-        model = RandomForestRegressor(
-            n_estimators=50,
-            max_depth=10,
-            min_samples_split=3,
-            min_samples_leaf=1,
-            random_state=42,
-            n_jobs=-1,
-        )
-        model.fit(x_train, y_train)
+        model = _fit_random_forest_model(x_train, y_train)
 
         # Evaluate on test set
         y_pred = model.predict(x_test)
-        mae = mean_absolute_error(y_test, y_pred)
-        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-        r2 = r2_score(y_test, y_pred)
-        mape = mean_absolute_percentage_error(y_test, y_pred)
-        medae = median_absolute_error(y_test, y_pred)
-        max_err = max_error(y_test, y_pred)
-
-        logger.info(
-            f"""Model evaluation -
-
-                    MAE: {mae:.2f},
-                    RMSE: {rmse:.2f},
-                    R-squared: {r2:.2f},
-                    MAPE: {mape:.2f},
-                    MedAE: {medae:.2f},
-                    Max Error: {max_err:.2f}"""
-        )
-
-        # predicted v actual plot
-        _generate_prediction_plot(output_path, y_test, y_pred, mae, rmse, r2, float(medae))
+        _evaluate_model_performance(output_path, y_test, y_pred)
 
         # feature importance analysis
         feature_names = _get_feature_names()
@@ -150,6 +104,63 @@ def train_pain_prediction_model(
 
     except Exception as e:
         raise ModelError("Training failed") from e
+
+
+def _extract_features_and_targets(entries: list[dict]) -> tuple[list[list[float]], list[float]]:
+    x = []
+    y = []
+
+    for i, entry in enumerate(entries):
+        # Get the next day's pain level as target
+        if i + 1 >= len(entries):
+            continue  # Skip last entry (no next day target)
+
+        entry_date = entry["date"]
+        target_entry = entries[i + 1]
+
+        # Extract features from prior 7 days
+        features, has_data = _extract_features_for_entry(entry_date, entries)
+
+        if features and has_data and target_entry.get(LagFeature.PAIN_LEVEL.value) is not None:
+            x.append(features)
+            y.append(float(target_entry[LagFeature.PAIN_LEVEL.value]))
+    return x, y
+
+
+def _fit_random_forest_model(x_train: list, y_train: list) -> RandomForestRegressor:
+    model = RandomForestRegressor(
+        n_estimators=50,
+        max_depth=10,
+        min_samples_split=3,
+        min_samples_leaf=1,
+        random_state=42,
+        n_jobs=-1,
+    )
+
+    model.fit(x_train, y_train)
+    return model
+
+
+def _evaluate_model_performance(output_path: Path, y_test: list, y_pred: np.ndarray) -> None:
+    mae = mean_absolute_error(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    r2 = r2_score(y_test, y_pred)
+    mape = mean_absolute_percentage_error(y_test, y_pred)
+    medae = median_absolute_error(y_test, y_pred)
+    max_err = max_error(y_test, y_pred)
+
+    logger.info(
+        f"""Model evaluation -
+                    MAE: {mae:.2f},
+                    RMSE: {rmse:.2f},
+                    R-squared: {r2:.2f},
+                    MAPE: {mape:.2f},
+                    MedAE: {medae:.2f},
+                    Max Error: {max_err:.2f}"""
+    )
+
+    # predicted v actual plot
+    _generate_prediction_plot(output_path, y_test, y_pred, mae, rmse, r2, float(medae))
 
 
 def _generate_prediction_plot(

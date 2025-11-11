@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy application code
-COPY . .
+COPY . /app
 
 # Install uv for dependency management
 RUN pip install uv
