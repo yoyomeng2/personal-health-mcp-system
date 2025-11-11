@@ -3,7 +3,7 @@
 import base64
 import json
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
@@ -12,7 +12,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from personal_health.api import oauth
 from personal_health.api.analysis import compute_summary
-from personal_health.api.dependencies import DatabaseDep, UserProfileRepoDep
+from personal_health.api.dependencies import (
+    DatabaseDep,
+    UserProfileRepoDep,
+    require_oauth_authorization_code,
+)
 from personal_health.api.operation_ids import OperationId
 from personal_health.api.schemas import (
     CorrelationResponse,
@@ -51,7 +55,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
 
 @router.get("/", tags=["health"])
-async def root() -> dict:
+async def root(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
+) -> dict:
     """Root endpoint.
 
     Returns:
@@ -61,7 +67,9 @@ async def root() -> dict:
 
 
 @router.get("/health", tags=["health"])
-async def health_check() -> dict:
+async def health_check(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
+) -> dict:
     """Health check endpoint.
 
     Returns:
@@ -306,12 +314,12 @@ async def oauth_register(request: Request) -> dict:
         f"Dynamic client registration request: {client_name} from {request.client.host if request.client else 'unknown'}"
     )
 
-    # Register the client
-    registration = oauth.register_client(
+    # Register the client and return the registration response
+    registration_response = oauth.register_client(
         client_name=client_name, redirect_uris=redirect_uris, grant_types=grant_types
     )
 
-    return registration
+    return registration_response
 
 
 @router.get(
@@ -320,7 +328,9 @@ async def oauth_register(request: Request) -> dict:
     response_model=dict,
     tags=["agent-documentation"],
 )
-async def get_agent_ux_guide() -> dict:
+async def get_agent_ux_guide(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
+) -> dict:
     """**IMPORTANT: Call this FIRST when helping users with health tracking.**
 
     Get the agent UX guide that defines conversational patterns, workflows,
@@ -360,7 +370,11 @@ async def get_agent_ux_guide() -> dict:
     response_model=EntryResponse,
     tags=["entries"],
 )
-async def add_entry(entry: EntryCreate, db: DatabaseDep) -> EntryResponse:
+async def add_entry(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
+    entry: EntryCreate,
+    db: DatabaseDep,
+) -> EntryResponse:
     """Add a new health entry.
 
     Entries are deduplicated via deterministic ID generation. If an entry already exists, returns existing entry_id.
@@ -410,7 +424,11 @@ async def add_entry(entry: EntryCreate, db: DatabaseDep) -> EntryResponse:
     response_model=EntryResponse,
     tags=["entries"],
 )
-async def update_entry(entry: EntryUpdate, db: DatabaseDep) -> EntryResponse:
+async def update_entry(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
+    entry: EntryUpdate,
+    db: DatabaseDep,
+) -> EntryResponse:
     """Update an existing health entry.
 
     Only provided fields will be updated.
@@ -468,6 +486,7 @@ async def update_entry(entry: EntryUpdate, db: DatabaseDep) -> EntryResponse:
     tags=["entries"],
 )
 async def get_entries(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
     db: DatabaseDep,
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -510,7 +529,9 @@ async def get_entries(
     response_model=Entry,
     tags=["entries"],
 )
-async def get_entry(entry_id: str, db: DatabaseDep) -> Entry:
+async def get_entry(
+    _: Annotated[str, Depends(require_oauth_authorization_code)], entry_id: str, db: DatabaseDep
+) -> Entry:
     """Get a single health entry by ID.
 
     Args:
@@ -548,6 +569,7 @@ async def get_entry(entry_id: str, db: DatabaseDep) -> Entry:
     tags=["entries"],
 )
 async def extract_features(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
     db: DatabaseDep,
     user_profile_repo: UserProfileRepoDep,
     entry_id: str,
@@ -634,7 +656,9 @@ async def extract_features(
     operation_id=OperationId.RESET_DATABASE.operation_id,
     tags=["admin"],
 )
-async def reset_database(db: DatabaseDep) -> dict:
+async def reset_database(
+    _: Annotated[str, Depends(require_oauth_authorization_code)], db: DatabaseDep
+) -> dict:
     """Reset the database by deleting all entries.
 
     Returns:
@@ -659,7 +683,11 @@ async def reset_database(db: DatabaseDep) -> dict:
     response_model=SummaryResponse,
     tags=["analysis"],
 )
-async def summarize_recent(db: DatabaseDep, window_days: int = 7) -> SummaryResponse:
+async def summarize_recent(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
+    db: DatabaseDep,
+    window_days: int = 7,
+) -> SummaryResponse:
     """Get summary of recent health data.
 
     Args:
@@ -700,7 +728,9 @@ async def summarize_recent(db: DatabaseDep, window_days: int = 7) -> SummaryResp
         raise HTTPException(status_code=500, detail="Failed to compute summary") from e
 
 
-def _get_predictor() -> HealthPredictor:
+def _get_predictor(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
+) -> HealthPredictor:
     """Dependency to get and initialize the health predictor instance."""
     predictor = HealthPredictor()
     predictor.load()
@@ -717,7 +747,10 @@ _predict_next_day_predictor_dep = Depends(_get_predictor)
     tags=["analysis"],
 )
 async def predict_next_day(
-    db: DatabaseDep, date: str, predictor: HealthPredictor = _predict_next_day_predictor_dep
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
+    db: DatabaseDep,
+    date: str,
+    predictor: HealthPredictor = _predict_next_day_predictor_dep,
 ) -> PredictionResponse:
     """Predict pain level for the day after the given date.
 
@@ -772,7 +805,9 @@ async def predict_next_day(
     response_model=CorrelationResponse,
     tags=["analysis"],
 )
-async def analyze_pain_triggers() -> dict:
+async def analyze_pain_triggers(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
+) -> dict:
     """Analyze potential pain triggers from entries.
 
     Returns:
@@ -793,6 +828,7 @@ async def analyze_pain_triggers() -> dict:
     tags=["user-profile"],
 )
 async def get_user_profile(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
     user_profile_repo: UserProfileRepoDep,
     user_id: str = Query("default_user"),
 ) -> UserProfileResponse:
@@ -854,6 +890,7 @@ async def get_user_profile(
     tags=["user-profile"],
 )
 async def update_user_profile(
+    _: Annotated[str, Depends(require_oauth_authorization_code)],
     profile_data: UserProfileRequest,
     user_profile_repo: UserProfileRepoDep,
     user_id: str = Query("default_user"),

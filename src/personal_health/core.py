@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.params import Depends
 from fastapi_mcp import AuthConfig, FastApiMCP
 
-from personal_health.api.dependencies import init_dependencies, oauth_bearer_authentication
+from personal_health.api.dependencies import init_dependencies, require_oauth_authorization_code
 from personal_health.api.operation_ids import get_mcp_operations
 from personal_health.api.routes import LoggingMiddleware
 from personal_health.api.routes import router as api_router
@@ -48,7 +48,7 @@ def create_app() -> FastAPI:
         name="personal-health-mcp",
         description=description,
         include_operations=get_mcp_operations(),
-        auth_config=AuthConfig(dependencies=[Depends(oauth_bearer_authentication)]),
+        auth_config=AuthConfig(dependencies=[Depends(require_oauth_authorization_code)]),
     )
     include_operations_mcp.mount_http()
 

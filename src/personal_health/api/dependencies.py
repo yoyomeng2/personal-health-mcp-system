@@ -5,6 +5,7 @@ import secrets
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi.security import OAuth2AuthorizationCodeBearer
 
 from personal_health.api import oauth
 from personal_health.db import Database, UserProfileRepository
@@ -15,6 +16,11 @@ logger = get_logger(__name__)
 
 AUTH_SECRET_KEY = "AUTH_SECRET"
 AUTH_SECRET = os.getenv(AUTH_SECRET_KEY, "").strip()
+_oauth2_scheme = OAuth2AuthorizationCodeBearer(
+    authorizationUrl="/oauth/authorize",
+    tokenUrl="/oauth/token",
+    auto_error=False,  # allow skipping auth on HTTP requests
+)
 
 # Global instances (initialized once by init_dependencies)
 _db: Database | None = None
@@ -105,61 +111,53 @@ def simple_authentication(x_api_key: str = Header(None, alias="X-API-Key")) -> s
     return x_api_key
 
 
-def oauth_bearer_authentication(request: Request, authorization: str = Header(None)) -> str:
-    """OAuth2 Bearer token authentication dependency.
-
-    - HTTP requests (localhost): No authentication required
-    - HTTPS requests: Requires OAuth Bearer token
+async def require_oauth_authorization_code(
+    request: Request, token: Annotated[str | None, Depends(_oauth2_scheme)] = None
+) -> str | None:
+    """Dependency that validates an incoming OAuth2 Authorization Code token.
 
     Args:
         request (Request): FastAPI request object.
-        authorization (str): Authorization header value (e.g., "Bearer <token>").
+        token (str | None): Token from OAuth2AuthorizationCodeBearer.
 
     Returns:
-        str: The client_id from the validated token, or empty string for HTTP.
-
+        str | None: client_id if authenticated, None for local/dev HTTP requests.
     Raises:
         HTTPException: 401 if token is missing, invalid, or expired on HTTPS.
     """
-    # Skip authentication for HTTP (local development)
-    if request.url.scheme == "http":
-        logger.debug("HTTP request - skipping authentication")
-        return ""
+    scheme = getattr(request, "url", None) and getattr(request.url, "scheme", "")
+    auth_header = None
+    try:
+        auth_header = request.headers.get("authorization")
+    except Exception:
+        auth_header = None
 
-    # HTTPS - require OAuth Bearer token
-    logger.debug("HTTPS request - OAuth authentication required")
+    # If the request is plain HTTP and there's no Authorization header,
+    # treat as local/dev and skip auth.
+    if scheme == "http" and not auth_header:
+        logger.debug("HTTP request with no Authorization header - skipping authentication")
+        return None
 
-    if not authorization:
-        logger.warning("Missing Authorization header")
+    # If an Authorization header is present (for example forwarded by an internal httpx call)
+    if not token:
+        logger.warning("Missing OAuth2 authorization code token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authorization",
+            detail="Missing OAuth2 authorization code token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Extract Bearer token
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        logger.warning(f"Invalid Authorization header format: {authorization}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization format",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = parts[1]
-
-    # Validate token
+    # validate it even on HTTP.
     is_valid, client_id = oauth.validate_access_token(token)
+
     if not is_valid or not client_id:
-        logger.warning("Invalid or expired Bearer token")
+        logger.warning("Invalid or expired OAuth2 authorization code token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Invalid or expired OAuth2 authorization code token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    logger.debug(f"Successful OAuth authentication for client: {client_id}")
     return client_id
 
 
