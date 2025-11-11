@@ -1,0 +1,16 @@
+services:
+  personal-health-mcp:
+    # bind-mount only the source and scripts so code changes are visible to the running container
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+
+    environment:
+      - ENVIRONMENT=dev
+
+  personal-health-mcp-https:
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    environment:
+      - ENVIRONMENT=dev
