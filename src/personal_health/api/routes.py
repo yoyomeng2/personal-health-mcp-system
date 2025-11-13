@@ -47,8 +47,12 @@ router = APIRouter()
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Any:
         body = await request.body()
+        headers = dict(request.headers)
+        if "authorization" in headers:
+            headers["authorization"] = "REDACTED"
+
         logger.debug(
-            f"[MIDDLEWARE] {request.method} {request.url.path} headers={dict(request.headers)} body={body[:500]!r}"
+            f"[MIDDLEWARE] {request.method} {request.url.path} headers={headers} body={body[:500]!r}"
         )
         response = await call_next(request)
         return response

@@ -67,6 +67,11 @@ def setup_logging(config_path: Path | str | None = None, level: str | None = Non
                     "handlers": ["console"],
                     "propagate": False,
                 },
+                "mcp.server.lowlevel.server": {
+                    "level": "INFO",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
                 "openai._base_client": {
                     "level": "INFO",
                     "handlers": ["console"],
