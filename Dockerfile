@@ -1,23 +1,19 @@
-FROM python:3.12-slim
+FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim
 
 WORKDIR /app
 
 # Install system dependencies (if needed for any packages)
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y
 
 # Copy application code
 COPY . /app
-
-# Install uv for dependency management
-RUN pip install uv
+COPY uv.lock pyproject.toml /app/
 
 # Install dependencies
-RUN uv sync
+RUN uv sync --locked
 
 # Create necessary directories
-RUN mkdir -p data models logs certs
+RUN mkdir -p data logs certs
 
 # Expose ports
 EXPOSE 8080 8443
