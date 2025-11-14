@@ -66,8 +66,8 @@ jobs:
       - name: TF init
         shell: bash
         run: |
-          set -euxo pipefail \
-          cd infra \
+          set -euxo pipefail
+          cd infra
           terraform init \
             -backend-config='region=${{ secrets.aws_region }}'
         working-directory: ${{ github.action_path }}
@@ -75,8 +75,8 @@ jobs:
       - name: Create ECR repo [TF apply]
         shell: bash
         run: |
-          set -euxo pipefail \
-          cd infra \
+          set -euxo pipefail
+          cd infra
           terraform apply \
             -var 'aws_account_id=${{ secrets.aws_account_id }}' \
             -auto-approve
