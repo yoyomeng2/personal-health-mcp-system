@@ -79,6 +79,7 @@ jobs:
           cd infra
           terraform apply \
             -var 'aws_account_id=${{ secrets.aws_account_id }}' \
+            -var 'aws_region=${{ secrets.aws_region }}' \
             -auto-approve
         working-directory: ${{ github.action_path }}
 
