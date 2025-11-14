@@ -17,3 +17,8 @@ variable "aws_account_id" {
   description = "Target AWS Account ID"
   type        = string
 }
+
+variable "aws_region" {
+  description = "AWS region to deploy resources in"
+  type        = string
+}

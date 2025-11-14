@@ -144,3 +144,9 @@ data/
 
 # Model artifacts (optional - uncomment if needed)
 # models/*.pkl
+
+# Terraform files
+.terraform/
+terraform.tfstate
+tfplan
+.terraform.lock.hcl

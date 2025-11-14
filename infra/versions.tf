@@ -8,5 +8,9 @@ terraform {
     }
   }
 
-  backend "s3" {}
+  backend "s3" {
+    bucket = "personal-health-mcp-system-terraform-state"
+    key    = "infra/terraform.tfstate"
+    region = "us-east-1"
+  }
 }
