@@ -114,6 +114,7 @@ POLICIES=(
   "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
   "arn:aws:iam::aws:policy/AmazonS3FullAccess"
   "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+  "arn:aws:iam::aws:policy/AmazonInspector2FullAccess"
 )
 
 for POLICY_ARN in "${POLICIES[@]}"; do
